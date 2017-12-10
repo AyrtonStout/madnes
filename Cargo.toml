@@ -1,0 +1,6 @@
+[package]
+name = "madnes"
+version = "0.1.0"
+authors = ["Ayrton Stout <AyrtonStout@outlook.com>"]
+
+[dependencies]
