@@ -55,8 +55,14 @@ fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
 }
 
 fn parse_header_struct(start_index: usize, rom_data: &[u8]) -> Result<RomHeader, String> {
-    if start_index + 6 >= rom_data.len() {
+    if start_index + 11 >= rom_data.len() {
         return Err("Rom data is not large enough to parse headers from".to_owned());
+    }
+
+    for i in 7..12 {
+        if rom_data[start_index + i] != 0 {
+            return Err(format!("Expected byte {} to be zero but it was {}", start_index + i, rom_data[start_index + i]));
+        }
     }
 
     return Ok(RomHeader {
@@ -115,8 +121,14 @@ mod tests {
     }
 
     #[test]
+    fn zero_filled_header_data_required() {
+        let nes_data: [u8; 14] = [0, 0, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 4]; // Last 4 should be zero filled
+        let res = super::parse_header_struct(2, &nes_data);
+        assert_eq!(true, res.is_err())
+    }
+    #[test]
     fn can_parse_header_data() {
-        let nes_data: [u8; 9] = [0, 0, 16, 8, 2, 0, 1, 0, 0]; // Omitted previous header data for brevity
+        let nes_data: [u8; 14] = [0, 0, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
         let res = super::parse_header_struct(2, &nes_data);
         let header = res.unwrap();
 
