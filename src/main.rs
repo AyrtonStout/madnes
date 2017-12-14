@@ -4,6 +4,8 @@ use std::fs::File;
 mod rom_header;
 use rom_header::RomHeader as RomHeader;
 
+mod instruction_set;
+
 fn main() {
 	read_file();
 }
@@ -34,7 +36,7 @@ fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
         return Err("ROM data buffer was empty".to_owned());
     }
 
-    let first_index  = buffer.iter().position(|&x| x != 0);
+    let first_index = buffer.iter().position(|&x| x != 0);
 
     match first_index {
         None => return Err("No non-zero data found in ROM".to_owned()),
