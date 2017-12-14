@@ -19,7 +19,10 @@ fn read_file() {
     let rom_start = find_start_of_rom_data(rom_data).expect("Bad thing dude");
 
     let header = parse_header_struct(rom_start, rom_data).expect("Disaster");
-    println!("{}", header.prg_rom_size);
+
+    if header.rom_has_trainer_data() {
+        panic!("ROMs with trainers not yet supported!");
+    }
 }
 
 fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
@@ -126,6 +129,7 @@ mod tests {
         let res = super::parse_header_struct(2, &nes_data);
         assert_eq!(true, res.is_err())
     }
+
     #[test]
     fn can_parse_header_data() {
         let nes_data: [u8; 14] = [0, 0, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
@@ -139,5 +143,19 @@ mod tests {
         assert_eq!(header.prg_ram_size, 1);
         assert_eq!(header.flags9, 0);
         assert_eq!(header.flags10, 0);
+    }
+
+    #[test]
+    fn parse_rom_trainer_bit() {
+        let nes_data_without_trainer: [u8; 12] = [16, 8, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let res_without_trainer = super::parse_header_struct(0, &nes_data_without_trainer);
+        let header_without_trainer = res_without_trainer.unwrap();
+
+        let nes_data_with_trainer: [u8; 12] = [16, 8, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let res_with_trainer = super::parse_header_struct(0, &nes_data_with_trainer);
+        let header_with_trainer = res_with_trainer.unwrap();
+
+        assert_eq!(header_without_trainer.rom_has_trainer_data(), false);
+        assert_eq!(header_with_trainer.rom_has_trainer_data(), true);
     }
 }

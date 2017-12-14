@@ -8,3 +8,9 @@ pub struct RomHeader {
      pub flags10: u8 // unofficial flags
 }
 
+impl RomHeader {
+    pub fn rom_has_trainer_data(&self) -> bool {
+        return (&self.flags6 & 4) == 4;
+    }
+}
+
