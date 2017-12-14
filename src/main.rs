@@ -10,8 +10,8 @@ fn main() {
 
 fn read_file() {
     let mut buffer = vec![0; 10];
-//    let mut file = File::open("Super Mario Bros 3 (E).nes").expect("Bad things");
-    let mut file = File::open("Contra (USA).nes").expect("Bad things");
+    let mut file = File::open("Super Mario Bros 3 (E).nes").expect("Bad things");
+//    let mut file = File::open("Contra (USA).nes").expect("Bad things");
 
     file.read_to_end(&mut buffer).expect("More bad things");
 
@@ -19,10 +19,14 @@ fn read_file() {
     let rom_start = find_start_of_rom_data(rom_data).expect("Bad thing dude");
 
     let header = parse_header_struct(rom_start, rom_data).expect("Disaster");
+    const HEADER_SIZE: usize = 16;
 
     if header.rom_has_trainer_data() {
         panic!("ROMs with trainers not yet supported!");
     }
+
+    println!("{}", rom_data[rom_start + HEADER_SIZE]);
+
 }
 
 fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
@@ -52,30 +56,31 @@ fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
                 return Err(format!("Found 'N', 'E' and 'S', but the next byte was not the MS-DOS EOF character. It was {}", buffer[index  + 3]));
             }
 
-            return Ok(index + 4); // Index of the byte following 'N' 'E' 'S' 'EOF'
+            return Ok(index); // Index of the 'N' byte in 'N' 'E' 'S' 'EOF'
         }
     }
 }
 
 fn parse_header_struct(start_index: usize, rom_data: &[u8]) -> Result<RomHeader, String> {
-    if start_index + 11 >= rom_data.len() {
+    let index = start_index + 4; // skip past the starting 'N' 'E' 'S' 'EOF'. We don't need to parse these
+    if index + 11 >= rom_data.len() {
         return Err("Rom data is not large enough to parse headers from".to_owned());
     }
 
     for i in 7..12 {
-        if rom_data[start_index + i] != 0 {
-            return Err(format!("Expected byte {} to be zero but it was {}", start_index + i, rom_data[start_index + i]));
+        if rom_data[index + i] != 0 {
+            return Err(format!("Expected byte {} to be zero but it was {}", index + i, rom_data[index + i]));
         }
     }
 
     return Ok(RomHeader {
-        prg_rom_size: rom_data[start_index],
-        chr_rom_size: rom_data[start_index + 1],
-        flags6: rom_data[start_index + 2],
-        flags7: rom_data[start_index + 3],
-        prg_ram_size: rom_data[start_index + 4],
-        flags9: rom_data[start_index + 5],
-        flags10: rom_data[start_index + 6]
+        prg_rom_size: rom_data[index],
+        chr_rom_size: rom_data[index + 1],
+        flags6: rom_data[index + 2],
+        flags7: rom_data[index + 3],
+        prg_ram_size: rom_data[index + 4],
+        flags9: rom_data[index + 5],
+        flags10: rom_data[index + 6]
     });
 }
 
@@ -113,26 +118,26 @@ mod tests {
     fn can_find_start_of_rom_data() {
         let nes_data: [u8; 8] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 20, 15];
         let res = super::find_start_of_rom_data(&nes_data);
-        assert_eq!(6, res.unwrap());
+        assert_eq!(2, res.unwrap());
     }
 
     #[test]
     fn fails_to_parse_too_small_header() {
-        let nes_data: [u8; 8] = [0, 0, 16, 8, 10, 5, 5, 5];
+        let nes_data: [u8; 12] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 10, 5, 5, 5];
         let res = super::parse_header_struct(2, &nes_data);
         assert_eq!(true, res.is_err());
     }
 
     #[test]
     fn zero_filled_header_data_required() {
-        let nes_data: [u8; 14] = [0, 0, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 4]; // Last 4 should be zero filled
+        let nes_data: [u8; 18] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 4]; // Last 4 should be zero filled
         let res = super::parse_header_struct(2, &nes_data);
         assert_eq!(true, res.is_err())
     }
 
     #[test]
     fn can_parse_header_data() {
-        let nes_data: [u8; 14] = [0, 0, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let nes_data: [u8; 18] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
         let res = super::parse_header_struct(2, &nes_data);
         let header = res.unwrap();
 
@@ -147,11 +152,11 @@ mod tests {
 
     #[test]
     fn parse_rom_trainer_bit() {
-        let nes_data_without_trainer: [u8; 12] = [16, 8, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let nes_data_without_trainer: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
         let res_without_trainer = super::parse_header_struct(0, &nes_data_without_trainer);
         let header_without_trainer = res_without_trainer.unwrap();
 
-        let nes_data_with_trainer: [u8; 12] = [16, 8, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let nes_data_with_trainer: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0];
         let res_with_trainer = super::parse_header_struct(0, &nes_data_with_trainer);
         let header_with_trainer = res_with_trainer.unwrap();
 
