@@ -5,6 +5,8 @@ mod rom_header;
 use rom_header::RomHeader as RomHeader;
 
 mod instruction_set;
+use instruction_set::instruction_set::get_instruction;
+use instruction_set::instruction_set::InstructionType;
 
 fn main() {
 	read_file();
@@ -27,7 +29,7 @@ fn read_file() {
         panic!("ROMs with trainers not yet supported!");
     }
 
-    println!("{}", rom_data[rom_start + HEADER_SIZE]);
+    read_program_instructions(rom_start + HEADER_SIZE, header.prg_rom_size,rom_data);
 
 }
 
@@ -84,6 +86,20 @@ fn parse_header_struct(start_index: usize, rom_data: &[u8]) -> Result<RomHeader,
         flags9: rom_data[index + 5],
         flags10: rom_data[index + 6]
     });
+}
+
+fn read_program_instructions(start_index: usize, kb_of_rom: u8, rom_data: &[u8]) {
+    let bytes_to_read: u32 = kb_of_rom as u32 * 1024;
+    let mut current_byte: u32 = 0;
+
+    while current_byte < bytes_to_read {
+        let opcode = rom_data[current_byte as usize + start_index];
+        println!("Found opcode {:X} at byte {:X}", opcode, current_byte as usize + start_index);
+        let instruction: InstructionType = get_instruction(opcode);
+        println!("Moving {} bytes forward", instruction.num_bytes);
+        current_byte += instruction.num_bytes as u32;
+    }
+
 }
 
 #[cfg(test)]
