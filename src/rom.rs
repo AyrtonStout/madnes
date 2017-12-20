@@ -5,11 +5,11 @@ use rom_header::RomHeader as RomHeader;
 
 pub struct Rom {
     pub rom_header: RomHeader,
-    pub trainer: u8,
-    pub prg_rom: u8,
-    pub chr_rom: u8,
-    pub playchoice_inst_rom: u8,
-    pub playchoice_prom: u8,
+    pub trainer: Vec<u8>,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    pub playchoice_inst_rom: Vec<u8>,
+    pub playchoice_prom: Vec<u8>,
 }
 
 pub fn read_file() -> Result<Rom, String> {
@@ -20,22 +20,32 @@ pub fn read_file() -> Result<Rom, String> {
     file.read_to_end(&mut buffer).expect("More bad things");
 
     let rom_data = buffer.as_slice(); // We no longer need the mutable vector
-    let rom_start = find_start_of_rom_data(rom_data).expect("Bad thing dude");
+    let mut current_rom_offset = find_start_of_rom_data(rom_data).expect("Bad thing dude");
 
-    let header = parse_header_struct(rom_start, rom_data).expect("Disaster");
-//    const HEADER_SIZE: usize = 16;
+    let header = parse_header_struct(&rom_data[current_rom_offset..]).expect("Disaster");
+
+    current_rom_offset += 16; // 16 is the number of bytes the header takes up in the ROM
+    let prg_rom_data = parse_prg_rom_data(header.prg_rom_size, &rom_data[current_rom_offset..]);
+
+    current_rom_offset += prg_rom_data.len();
+    let chr_rom_data = parse_chr_rom_data(header.chr_rom_size, &rom_data[current_rom_offset..]);
+
 
     if header.rom_has_trainer_data() {
         panic!("ROMs with trainers not yet supported!");
     }
 
+    if header.rom_has_playchoice_data() {
+        panic!("ROMs with playchoice data not yet supported!");
+    }
+
     return Ok(Rom {
         rom_header: header,
-        trainer: 7,
-        prg_rom: 7,
-        chr_rom: 7,
-        playchoice_inst_rom: 7,
-        playchoice_prom: 7
+        trainer: vec!(),
+        prg_rom: prg_rom_data,
+        chr_rom: chr_rom_data,
+        playchoice_inst_rom: vec!(),
+        playchoice_prom: vec!()
     });
 }
 
@@ -71,8 +81,8 @@ fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
     }
 }
 
-fn parse_header_struct(start_index: usize, rom_data: &[u8]) -> Result<RomHeader, String> {
-    let index = start_index + 4; // skip past the starting 'N' 'E' 'S' 'EOF'. We don't need to parse these
+fn parse_header_struct(rom_data: &[u8]) -> Result<RomHeader, String> {
+    let index = 4 as usize; // skip past the starting 'N' 'E' 'S' 'EOF'. We don't need to parse these
     if index + 11 >= rom_data.len() {
         return Err("Rom data is not large enough to parse headers from".to_owned());
     }
@@ -94,6 +104,15 @@ fn parse_header_struct(start_index: usize, rom_data: &[u8]) -> Result<RomHeader,
     });
 }
 
+fn parse_prg_rom_data(prg_rom_size: u8, rom_data: &[u8]) -> Vec<u8> {
+    let bytes_to_read: u32 = prg_rom_size as u32 * 16384; // prg_rom_size comes in as 16 kb units
+    return rom_data[..bytes_to_read as usize].to_vec();
+}
+
+fn parse_chr_rom_data(chr_rom_size: u8, rom_data: &[u8]) -> Vec<u8> {
+    let bytes_to_read: u32 = chr_rom_size as u32 * 8192; // chr_rom_size comes in as 8 kb units
+    return rom_data[..bytes_to_read as usize].to_vec();
+}
 
 #[cfg(test)]
 mod tests {
@@ -134,22 +153,22 @@ mod tests {
 
     #[test]
     fn fails_to_parse_too_small_header() {
-        let nes_data: [u8; 12] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 10, 5, 5, 5];
-        let res = super::parse_header_struct(2, &nes_data);
+        let nes_data: [u8; 10] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 10, 5, 5, 5];
+        let res = super::parse_header_struct(&nes_data);
         assert_eq!(true, res.is_err());
     }
 
     #[test]
     fn zero_filled_header_data_required() {
-        let nes_data: [u8; 18] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 4]; // Last 4 should be zero filled
-        let res = super::parse_header_struct(2, &nes_data);
+        let nes_data: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 4]; // Last 4 should be zero filled
+        let res = super::parse_header_struct(&nes_data);
         assert_eq!(true, res.is_err())
     }
 
     #[test]
     fn can_parse_header_data() {
-        let nes_data: [u8; 18] = [0, 0, 'N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
-        let res = super::parse_header_struct(2, &nes_data);
+        let nes_data: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let res = super::parse_header_struct(&nes_data);
         let header = res.unwrap();
 
         assert_eq!(header.prg_rom_size, 16);
@@ -164,11 +183,11 @@ mod tests {
     #[test]
     fn parse_rom_trainer_bit() {
         let nes_data_without_trainer: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
-        let res_without_trainer = super::parse_header_struct(0, &nes_data_without_trainer);
+        let res_without_trainer = super::parse_header_struct(&nes_data_without_trainer);
         let header_without_trainer = res_without_trainer.unwrap();
 
         let nes_data_with_trainer: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0];
-        let res_with_trainer = super::parse_header_struct(0, &nes_data_with_trainer);
+        let res_with_trainer = super::parse_header_struct(&nes_data_with_trainer);
         let header_with_trainer = res_with_trainer.unwrap();
 
         assert_eq!(header_without_trainer.rom_has_trainer_data(), false);

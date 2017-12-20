@@ -10,7 +10,9 @@ use instruction_set::instruction_set::InstructionType;
 
 fn main() {
     let rom: Rom = rom::read_file().expect("Wow just terrible");
-    println!("{}", rom.rom_header.prg_rom_size)
+    println!("{}", rom.rom_header.chr_rom_size);
+    println!("{}", rom.prg_rom.len());
+    println!("{}", rom.chr_rom.len());
 }
 
 fn read_program_instructions(start_index: usize, prg_rom_size: u8, rom_data: &[u8]) {

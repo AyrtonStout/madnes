@@ -12,5 +12,9 @@ impl RomHeader {
     pub fn rom_has_trainer_data(&self) -> bool {
         return (&self.flags6 & 4) == 4;
     }
+
+    pub fn rom_has_playchoice_data(&self) -> bool {
+        return (&self.flags7 & 2) == 2;
+    }
 }
 
