@@ -13,15 +13,16 @@ fn main() {
     println!("{}", rom.rom_header.chr_rom_size);
     println!("{}", rom.prg_rom.len());
     println!("{}", rom.chr_rom.len());
+
+    read_program_instructions(rom.prg_rom);
 }
 
-fn read_program_instructions(start_index: usize, prg_rom_size: u8, rom_data: &[u8]) {
-    let bytes_to_read: u32 = prg_rom_size as u32 * 16384;
+fn read_program_instructions(prg_rom: Vec<u8>) {
     let mut current_byte: u32 = 0;
 
-    while current_byte < bytes_to_read {
-        let opcode = rom_data[current_byte as usize + start_index];
-        println!("Found opcode {:X} at byte {:X}", opcode, current_byte as usize + start_index);
+    while current_byte < prg_rom.len() as u32 {
+        let opcode = prg_rom[current_byte as usize];
+        println!("Found opcode {:X} at byte {:X}", opcode, current_byte as usize);
         let instruction: InstructionType = get_instruction(opcode);
         println!("Moving {} bytes forward", instruction.num_bytes);
         current_byte += instruction.num_bytes as u32;
