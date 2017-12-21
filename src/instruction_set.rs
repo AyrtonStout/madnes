@@ -50,6 +50,91 @@ pub mod instruction_set {
         InstructionType { name: "AND", num_bytes: 3, num_cycles: 4 }, // 2D (Absolute)
         InstructionType { name: "ROL", num_bytes: 3, num_cycles: 6 }, // 2E (Absolute)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 2F
+
+        InstructionType { name: "BMI", num_bytes: 2, num_cycles: 2/* * */ }, // 30
+        InstructionType { name: "AND", num_bytes: 2, num_cycles: 5 }, // 31 (Indirect, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 32
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 33
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 34
+        InstructionType { name: "AND", num_bytes: 2, num_cycles: 4 }, // 35 (Zero Page, X)
+        InstructionType { name: "ROL", num_bytes: 2, num_cycles: 6 }, // 36 (Zero Page, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 37
+        InstructionType { name: "SEC", num_bytes: 1, num_cycles: 2 }, // 38
+        InstructionType { name: "AND", num_bytes: 3, num_cycles: 4/* * */ }, // 39 (Absolute, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 3A
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 3B
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 3C
+        InstructionType { name: "AND", num_bytes: 3, num_cycles: 4/* * */ }, // 3D (Absolute, X)
+        InstructionType { name: "ROL", num_bytes: 3, num_cycles: 7 }, // 3E (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 3F
+
+        InstructionType { name: "RTI", num_bytes: 3, num_cycles: 4 }, // 40
+        InstructionType { name: "EOR", num_bytes: 2, num_cycles: 6 }, // 41 (Indirect, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 42
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 43
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 44
+        InstructionType { name: "EOR", num_bytes: 2, num_cycles: 3 }, // 45 (Zero Page)
+        InstructionType { name: "LSR", num_bytes: 2, num_cycles: 5 }, // 46 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 47
+        InstructionType { name: "PHA", num_bytes: 1, num_cycles: 3 }, // 48
+        InstructionType { name: "EOR", num_bytes: 2, num_cycles: 2 }, // 49 Immediate
+        InstructionType { name: "LSR", num_bytes: 1, num_cycles: 2 }, // 4A Accumulator
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 4B
+        InstructionType { name: "JMP", num_bytes: 3, num_cycles: 3 }, // 4C (Absolute)
+        InstructionType { name: "EOR", num_bytes: 1, num_cycles: 6 }, // 4D (Absolute)
+        InstructionType { name: "LSR", num_bytes: 3, num_cycles: 6 }, // 4E (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 4F
+
+        InstructionType { name: "BVC", num_bytes: 2, num_cycles: 2/* * */ }, // 50
+        InstructionType { name: "EOR", num_bytes: 2, num_cycles: 5/* * */ }, // 51 (Indirect, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 52
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 53
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 54
+        InstructionType { name: "EOR", num_bytes: 2, num_cycles: 4 }, // 55 (Zero Page, X)
+        InstructionType { name: "LSR", num_bytes: 2, num_cycles: 6 }, // 56 (Zero Page, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 57
+        InstructionType { name: "CLI", num_bytes: 1, num_cycles: 2 }, // 58
+        InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */ }, // 59 (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 5A
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 5B
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 5C
+        InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */ }, // 5D (Absolute, X)
+        InstructionType { name: "LSR", num_bytes: 3, num_cycles: 7 }, // 5E (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 5F
+
+        InstructionType { name: "RTS", num_bytes: 1, num_cycles: 6 }, // 60
+        InstructionType { name: "ADC", num_bytes: 2, num_cycles: 6 }, // 61 (Indirect, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 62
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 63
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 64
+        InstructionType { name: "ADC", num_bytes: 2, num_cycles: 3 }, // 65 (Zero Page)
+        InstructionType { name: "ROR", num_bytes: 2, num_cycles: 5 }, // 66 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 67
+        InstructionType { name: "PLA", num_bytes: 1, num_cycles: 4 }, // 68
+        InstructionType { name: "ADC", num_bytes: 2, num_cycles: 2 }, // 69 (Immediate)
+        InstructionType { name: "ROR", num_bytes: 1, num_cycles: 2 }, // 6A (Accumulator)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 6B
+        InstructionType { name: "JMP", num_bytes: 3, num_cycles: 5 }, // 6C (Indirect)
+        InstructionType { name: "ADC", num_bytes: 3, num_cycles: 4 }, // 6D (Absolute)
+        InstructionType { name: "ROR", num_bytes: 3, num_cycles: 6 }, // 6E (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 6F
+
+        InstructionType { name: "BVS", num_bytes: 2, num_cycles: 2/* * */ }, // 70
+        InstructionType { name: "ADC", num_bytes: 2, num_cycles: 5/* * */ }, // 71 (Indirect, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 72
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 73
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 74
+        InstructionType { name: "ADC", num_bytes: 2, num_cycles: 4 }, // 75 (Zero Page, X)
+        InstructionType { name: "ROR", num_bytes: 2, num_cycles: 6 }, // 76 (Zero Page, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 77
+        InstructionType { name: "SEI", num_bytes: 1, num_cycles: 2 }, // 78
+        InstructionType { name: "ADC", num_bytes: 3, num_cycles: 4/* * */ }, // 79 (Absolute, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7A
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7B
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7C
+        InstructionType { name: "ADC", num_bytes: 3, num_cycles: 4/* * */ }, // 7D (Absolute, X)
+        InstructionType { name: "ROR", num_bytes: 3, num_cycles: 7 }, // 7E (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7F
     ];
 
     #[derive(Copy, Clone)]
