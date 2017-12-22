@@ -135,6 +135,91 @@ pub mod instruction_set {
         InstructionType { name: "ADC", num_bytes: 3, num_cycles: 4/* * */ }, // 7D (Absolute, X)
         InstructionType { name: "ROR", num_bytes: 3, num_cycles: 7 }, // 7E (Absolute, X)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7F
+
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 80
+        InstructionType { name: "STA", num_bytes: 2, num_cycles: 6 }, // 81 (Indirect, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 82
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 83
+        InstructionType { name: "STY", num_bytes: 2, num_cycles: 3 }, // 84 (Zero Page)
+        InstructionType { name: "STA", num_bytes: 2, num_cycles: 3 }, // 85 (Zero Page)
+        InstructionType { name: "STX", num_bytes: 2, num_cycles: 3 }, // 86 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 87
+        InstructionType { name: "DEY", num_bytes: 1, num_cycles: 2 }, // 88
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 89
+        InstructionType { name: "TXA", num_bytes: 1, num_cycles: 2 }, // 8A
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 8B
+        InstructionType { name: "STY", num_bytes: 3, num_cycles: 4 }, // 8C (Absolute)
+        InstructionType { name: "STA", num_bytes: 3, num_cycles: 4 }, // 8D (Absolute)
+        InstructionType { name: "STX", num_bytes: 3, num_cycles: 4 }, // 8E (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 8F
+
+        InstructionType { name: "BCC", num_bytes: 2, num_cycles: 2/* * */ }, // 90
+        InstructionType { name: "STA", num_bytes: 2, num_cycles: 6 }, // 91 (Indirect, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 92
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 93
+        InstructionType { name: "STY", num_bytes: 2, num_cycles: 4 }, // 94 (Zero Page, X)
+        InstructionType { name: "STA", num_bytes: 2, num_cycles: 4 }, // 95 (Zero Page, X)
+        InstructionType { name: "STX", num_bytes: 2, num_cycles: 4 }, // 96 (Zero Page, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 97
+        InstructionType { name: "TYA", num_bytes: 1, num_cycles: 2 }, // 98
+        InstructionType { name: "STA", num_bytes: 3, num_cycles: 5 }, // 99 (Absolute, Y)
+        InstructionType { name: "TXS", num_bytes: 1, num_cycles: 2 }, // 9A
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 9B
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 9C
+        InstructionType { name: "STA", num_bytes: 2, num_cycles: 2/* * */ }, // 9D (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 9E
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 9F
+
+        InstructionType { name: "LDY", num_bytes: 2, num_cycles: 2 }, // A0 (Immediate)
+        InstructionType { name: "LDA", num_bytes: 2, num_cycles: 6 }, // A1 (Indirect, X)
+        InstructionType { name: "LDX", num_bytes: 2, num_cycles: 2 }, // A2 (Immediate)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // A3
+        InstructionType { name: "LDY", num_bytes: 2, num_cycles: 3 }, // A4 (Zero Page)
+        InstructionType { name: "LDA", num_bytes: 2, num_cycles: 3 }, // A5 (Zero Page)
+        InstructionType { name: "LDX", num_bytes: 2, num_cycles: 3 }, // A6 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // A7
+        InstructionType { name: "TAY", num_bytes: 1, num_cycles: 2 }, // A8
+        InstructionType { name: "LDA", num_bytes: 2, num_cycles: 2 }, // A9 (Immediate)
+        InstructionType { name: "TAX", num_bytes: 1, num_cycles: 2 }, // AA
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // AB
+        InstructionType { name: "LDY", num_bytes: 3, num_cycles: 4 }, // AC (Absolute)
+        InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4 }, // AD (Absolute)
+        InstructionType { name: "LDX", num_bytes: 3, num_cycles: 4 }, // AE (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // AF
+
+        InstructionType { name: "BCS", num_bytes: 0, num_cycles: 0 }, // B0
+        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B1 (Indirect, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B2
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B3
+        InstructionType { name: "LDY", num_bytes: 0, num_cycles: 0 }, // B4 (Zero Page, X)
+        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B5 (Zero Page, X)
+        InstructionType { name: "LDX", num_bytes: 0, num_cycles: 0 }, // B6 (Zero Page, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B7
+        InstructionType { name: "CLV", num_bytes: 0, num_cycles: 0 }, // B8
+        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B9 (Absolute, Y)
+        InstructionType { name: "TSX", num_bytes: 0, num_cycles: 0 }, // BA
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // BB
+        InstructionType { name: "LDY", num_bytes: 0, num_cycles: 0 }, // BC (Absolute, X)
+        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // BD (Absolute, X)
+        InstructionType { name: "LDX", num_bytes: 0, num_cycles: 0 }, // BE (Absolute, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // BF
+
+        InstructionType { name: "CPY", num_bytes: 2, num_cycles: 2 }, // C0 (Immediate)
+        InstructionType { name: "CMP", num_bytes: 2, num_cycles: 6 }, // C1 (Indirect, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // C2
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // C3
+        InstructionType { name: "CPY", num_bytes: 2, num_cycles: 3 }, // C4 (Zero Page)
+        InstructionType { name: "CMP", num_bytes: 2, num_cycles: 3 }, // C5 (Zero Page)
+        InstructionType { name: "DEC", num_bytes: 2, num_cycles: 5 }, // C6 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // C7
+        InstructionType { name: "INY", num_bytes: 1, num_cycles: 2 }, // C8
+        InstructionType { name: "CMP", num_bytes: 2, num_cycles: 2 }, // C9 (Immediate)
+        InstructionType { name: "DEC", num_bytes: 1, num_cycles: 2 }, // CA
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // CB
+        InstructionType { name: "CPY", num_bytes: 3, num_cycles: 4 }, // CC (Absolute)
+        InstructionType { name: "CMP", num_bytes: 3, num_cycles: 4 }, // CD (Absolute)
+        InstructionType { name: "DEC", num_bytes: 3, num_cycles: 6 }, // CE (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // CF
     ];
 
     #[derive(Copy, Clone)]
