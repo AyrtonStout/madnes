@@ -193,4 +193,13 @@ mod tests {
         assert_eq!(header_without_trainer.rom_has_trainer_data(), false);
         assert_eq!(header_with_trainer.rom_has_trainer_data(), true);
     }
+
+    #[test]
+    fn parse_mapper_number() {
+        let nes_data: [u8; 16] = ['N' as u8, 'E' as u8, 'S' as u8, 0x1A, 16, 8, 32, 64, 1, 0, 0, 0, 0, 0, 0, 0]; // Omitted previous header data for brevity
+        let res = super::parse_header_struct(&nes_data);
+        let header_without_trainer = res.unwrap();
+
+        assert_eq!(header_without_trainer.get_mapper_number(), 66);
+    }
 }

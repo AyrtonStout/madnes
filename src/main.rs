@@ -10,11 +10,12 @@ use instruction_set::instruction_set::InstructionType;
 
 fn main() {
     let rom: Rom = rom::read_file().expect("Wow just terrible");
-    println!("{}", rom.rom_header.chr_rom_size);
+//    println!("{}", rom.rom_header.chr_rom_size);
     println!("{}", rom.prg_rom.len());
     println!("{}", rom.chr_rom.len());
 
-    read_program_instructions(rom.prg_rom);
+    println!("{}", rom.rom_header.get_mapper_number());
+//    read_program_instructions(rom.prg_rom);
 }
 
 fn read_program_instructions(prg_rom: Vec<u8>) {

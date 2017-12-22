@@ -16,5 +16,9 @@ impl RomHeader {
     pub fn rom_has_playchoice_data(&self) -> bool {
         return (&self.flags7 & 2) == 2;
     }
+
+    pub fn get_mapper_number(&self) -> u8 {
+        return (&self.flags6 >> 4) + (&self.flags7 & 0xF0);
+    }
 }
 
