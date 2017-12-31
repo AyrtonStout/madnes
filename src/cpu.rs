@@ -23,21 +23,29 @@ impl CPU {
             self.program_counter += instruction.num_bytes as u32;
 
             match opcode {
-                0x78 => {
-                    self.handle_opcode_78();
-                }
-                _ => {
-                }
+                0x78 => { self.asm_sei(); }
+                0xD8 => { self.asm_cld(); }
+                _ => {}
             }
         }
     }
 
-    pub fn interrupts_disabled(&self) -> bool {
+    pub fn are_interrupts_disabled(&self) -> bool {
         return (self.status_register & 0x04) == 0x04;
     }
 
-    fn handle_opcode_78(&mut self) {
+    // Read more about decimal mode here http://6502.org/tutorials/decimal_mode.html
+    pub fn is_in_decimal_mode(&self) -> bool {
+        return (self.status_register & 0x08) == 0x08;
+    }
+
+    fn asm_sei(&mut self) {
         self.status_register |= 0x04;
+    }
+
+    // Sets the operational mode to binary instead of decimal
+    fn asm_cld(&mut self) {
+        self.status_register &= !0x08;
     }
 
 }
@@ -47,9 +55,32 @@ mod tests {
     use cpu::CPU;
 
     #[test]
-    fn test_opcode_78() {
+    fn test_sei() {
         let mut cpu: CPU = CPU::new();
-        cpu.handle_opcode_78();
-        assert_eq!(cpu.interrupts_disabled(), true);
+        cpu.asm_sei();
+        assert_eq!(cpu.are_interrupts_disabled(), true);
+    }
+
+    #[test]
+    fn test_cld() {
+        let mut cpu: CPU = CPU::new();
+        cpu.asm_cld();
+        assert_eq!(cpu.is_in_decimal_mode(), false);
+    }
+
+    #[test]
+    fn setting_cpu_status_flags_does_not_affect_others() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.asm_sei();
+        cpu.asm_cld();
+
+        assert_eq!(cpu.are_interrupts_disabled(), true);
+        assert_eq!(cpu.is_in_decimal_mode(), false);
+
+        cpu.asm_sei();
+
+        assert_eq!(cpu.are_interrupts_disabled(), true);
+        assert_eq!(cpu.is_in_decimal_mode(), false);
     }
 }
