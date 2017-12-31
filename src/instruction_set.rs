@@ -7,7 +7,7 @@ pub mod instruction_set {
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 4
         InstructionType { name: "ORA", num_bytes: 2, num_cycles: 3 }, // 5 (Zero page)
         InstructionType { name: "ASL", num_bytes: 2, num_cycles: 5 }, // 6 (Zero page)
-        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // 7 [Unofficial]
         InstructionType { name: "PHP", num_bytes: 1, num_cycles: 3 }, // 8
         InstructionType { name: "ORA", num_bytes: 2, num_cycles: 2 }, // 9 (Immediate)
         InstructionType { name: "ASL", num_bytes: 1, num_cycles: 2 }, // A (Accumulator)
@@ -187,21 +187,21 @@ pub mod instruction_set {
         InstructionType { name: "LDX", num_bytes: 3, num_cycles: 4 }, // AE (Absolute)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // AF
 
-        InstructionType { name: "BCS", num_bytes: 0, num_cycles: 0 }, // B0
-        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B1 (Indirect, Y)
+        InstructionType { name: "BCS", num_bytes: 2, num_cycles: 2/* * */ }, // B0
+        InstructionType { name: "LDA", num_bytes: 2, num_cycles: 5/* * */ }, // B1 (Indirect, Y)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B2
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B3
-        InstructionType { name: "LDY", num_bytes: 0, num_cycles: 0 }, // B4 (Zero Page, X)
-        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B5 (Zero Page, X)
-        InstructionType { name: "LDX", num_bytes: 0, num_cycles: 0 }, // B6 (Zero Page, Y)
+        InstructionType { name: "LDY", num_bytes: 2, num_cycles: 4 }, // B4 (Zero Page, X)
+        InstructionType { name: "LDA", num_bytes: 2, num_cycles: 4 }, // B5 (Zero Page, X)
+        InstructionType { name: "LDX", num_bytes: 2, num_cycles: 4 }, // B6 (Zero Page, Y)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // B7
-        InstructionType { name: "CLV", num_bytes: 0, num_cycles: 0 }, // B8
-        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // B9 (Absolute, Y)
-        InstructionType { name: "TSX", num_bytes: 0, num_cycles: 0 }, // BA
+        InstructionType { name: "CLV", num_bytes: 1, num_cycles: 2 }, // B8
+        InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */ }, // B9 (Absolute, Y)
+        InstructionType { name: "TSX", num_bytes: 2, num_cycles: 5/* * */ }, // BA
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // BB
-        InstructionType { name: "LDY", num_bytes: 0, num_cycles: 0 }, // BC (Absolute, X)
-        InstructionType { name: "LDA", num_bytes: 0, num_cycles: 0 }, // BD (Absolute, X)
-        InstructionType { name: "LDX", num_bytes: 0, num_cycles: 0 }, // BE (Absolute, Y)
+        InstructionType { name: "LDY", num_bytes: 3, num_cycles: 4/* * */ }, // BC (Absolute, X)
+        InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */ }, // BD (Absolute, X)
+        InstructionType { name: "LDX", num_bytes: 3, num_cycles: 4/* * */ }, // BE (Absolute, Y)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // BF
 
         InstructionType { name: "CPY", num_bytes: 2, num_cycles: 2 }, // C0 (Immediate)
@@ -220,6 +220,40 @@ pub mod instruction_set {
         InstructionType { name: "CMP", num_bytes: 3, num_cycles: 4 }, // CD (Absolute)
         InstructionType { name: "DEC", num_bytes: 3, num_cycles: 6 }, // CE (Absolute)
         InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // CF
+
+        InstructionType { name: "BNE", num_bytes: 2, num_cycles: 2/* * */ }, // D0
+        InstructionType { name: "CMP", num_bytes: 2, num_cycles: 5/* * */ }, // D1 (Indirect, @,Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // D2
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // D3
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // D4
+        InstructionType { name: "CMP", num_bytes: 2, num_cycles: 4 }, // D5 (Zero page, X)
+        InstructionType { name: "DEC", num_bytes: 2, num_cycles: 6 }, // D6 (Zero page, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // D7
+        InstructionType { name: "CLD", num_bytes: 1, num_cycles: 2 }, // D8
+        InstructionType { name: "CMP", num_bytes: 3, num_cycles: 4/* * */ }, // D9 (Absolute, Y)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // DA
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // DB
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // DC
+        InstructionType { name: "CMP", num_bytes: 3, num_cycles: 4/* * */ }, // DD (Absolute, X)
+        InstructionType { name: "DEC", num_bytes: 3, num_cycles: 7 }, // DE (Absolute, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // DF
+
+        InstructionType { name: "CPX", num_bytes: 2, num_cycles: 2 }, // E0 (Immediate)
+        InstructionType { name: "SBC", num_bytes: 2, num_cycles: 6 }, // E1 (Indirect, X)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // E2
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // E3
+        InstructionType { name: "CPX", num_bytes: 2, num_cycles: 3 }, // E4 (Zero Page)
+        InstructionType { name: "SBC", num_bytes: 2, num_cycles: 3 }, // E5 (Zero Page)
+        InstructionType { name: "INC", num_bytes: 2, num_cycles: 5 }, // E6 (Zero Page)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // E7
+        InstructionType { name: "INX", num_bytes: 1, num_cycles: 2 }, // E8
+        InstructionType { name: "SBC", num_bytes: 2, num_cycles: 2 }, // E9 (Immediate)
+        InstructionType { name: "NOP", num_bytes: 1, num_cycles: 2 }, // EA
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // EB
+        InstructionType { name: "CPX", num_bytes: 3, num_cycles: 4 }, // EC (Absolute)
+        InstructionType { name: "SBC", num_bytes: 3, num_cycles: 4 }, // ED (Absolute)
+        InstructionType { name: "INC", num_bytes: 3, num_cycles: 6 }, // EE (Absolute)
+        InstructionType { name: "UNDEF", num_bytes: 0, num_cycles: 0 }, // EF
     ];
 
     #[derive(Copy, Clone)]
@@ -238,7 +272,7 @@ pub mod instruction_set {
         let found_instruction = INSTRUCTIONS[opcode as usize];
 
         if found_instruction.num_bytes == 0 {
-            panic!(format!("Attempted to access an unimplemented op code {}!", opcode))
+            panic!(format!("Attempted to access an unimplemented op code {:X}!", opcode))
         }
 
         return found_instruction;
