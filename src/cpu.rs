@@ -78,6 +78,10 @@ impl CPU {
         self.status_register |= 0x04;
     }
 
+    fn asm_sta_absolute(&mut self) {
+
+    }
+
     // A9 - Loads a specific value into the accumulator
     fn asm_lda_immediate(&mut self, prg_rom: &[u8]) {
         self.accumulator = prg_rom[0];

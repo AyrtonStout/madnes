@@ -1,5 +1,6 @@
 
 mod rom_header;
+mod cpu_memory;
 
 mod rom;
 use rom::Rom as Rom;
@@ -8,6 +9,7 @@ mod instruction_set;
 
 mod cpu;
 use cpu::CPU as CPU;
+
 
 fn main() {
     let rom: Rom = rom::read_file().expect("Wow just terrible");
