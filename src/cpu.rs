@@ -26,9 +26,8 @@ impl CPU {
     pub fn read_program_instructions(&mut self, prg_rom: Vec<u8>) {
         while self.program_counter < prg_rom.len() as u16 {
             let opcode = prg_rom[self.program_counter as usize];
-            println!("Found opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
             let instruction_type: InstructionType = get_instruction(opcode);
-            println!("Moving {} bytes forward", instruction_type.num_bytes);
+//            println!("Moving {} bytes forward", instruction_type.num_bytes);
             let instruction_start_byte = (self.program_counter + 1) as usize;
             let instruction_end_byte = (self.program_counter + instruction_type.num_bytes as u16) as usize;
 
@@ -44,7 +43,9 @@ impl CPU {
                 0x8D => { self.asm_sta_absolute(instruction_data); }
                 0xA9 => { self.asm_lda_immediate(instruction_data); }
                 0xD8 => { self.asm_cld(); }
-                _ => {}
+                _ => {
+                    println!("Found unimplemented opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
+                }
             }
         }
     }
@@ -95,6 +96,11 @@ impl CPU {
         let address: u16 = CPU::convert_to_address(instruction_data);
 
         self.memory.set_8_bit_value(address, self.accumulator);
+    }
+
+    // A9 - Loads a specific value into the X register
+    fn asm_ldx_immediate(&mut self, instruction_data: &[u8]) {
+        self.x_register = instruction_data[0];
     }
 
     // A9 - Loads a specific value into the accumulator
@@ -184,5 +190,12 @@ mod tests {
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
         assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_ldx_immediate() {
+        let mut cpu: CPU = CPU::new();
+        cpu.asm_ldx_immediate(&[0x52]);
+        assert_eq!(0x52, cpu.x_register);
     }
 }
