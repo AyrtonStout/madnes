@@ -1,12 +1,14 @@
 use instruction_set::InstructionType;
 use instruction_set::get_instruction;
+use cpu_memory::CPUMemory;
 
 pub struct CPU {
     program_counter: u16,
     status_register: u8,
     accumulator: u8,
     x_register: u8,
-    y_register: u8
+    y_register: u8,
+    memory: CPUMemory
 }
 
 impl CPU {
@@ -16,7 +18,8 @@ impl CPU {
             status_register: 0,
             accumulator: 0,
             x_register: 0,
-            y_register: 0
+            y_register: 0,
+            memory: CPUMemory::new() // TODO need to init this with the prg_memory at some point probably
         }
     }
 
@@ -38,10 +41,19 @@ impl CPU {
             match opcode {
                 0x10 => { self.asm_bpl(instruction_data) }
                 0x78 => { self.asm_sei(); }
+                0x8D => { self.asm_sta_absolute(instruction_data); }
                 0xA9 => { self.asm_lda_immediate(instruction_data); }
                 0xD8 => { self.asm_cld(); }
                 _ => {}
             }
+        }
+    }
+
+    fn convert_to_address(address_data: &[u8]) -> u16 {
+        if address_data.len() == 2 {
+            return ((address_data[1] as u16) << 8) | (address_data[0] as u16);
+        } else {
+            return address_data[0] as u16;
         }
     }
 
@@ -78,13 +90,16 @@ impl CPU {
         self.status_register |= 0x04;
     }
 
-    fn asm_sta_absolute(&mut self) {
+    // 8D - Puts the accumulator into a specific 2-byte memory address
+    fn asm_sta_absolute(&mut self, instruction_data: &[u8]) {
+        let address: u16 = CPU::convert_to_address(instruction_data);
 
+        self.memory.set_8_bit_value(address, self.accumulator);
     }
 
     // A9 - Loads a specific value into the accumulator
-    fn asm_lda_immediate(&mut self, prg_rom: &[u8]) {
-        self.accumulator = prg_rom[0];
+    fn asm_lda_immediate(&mut self, instruction_data: &[u8]) {
+        self.accumulator = instruction_data[0];
     }
 
     // D8 - Sets the operational mode to binary instead of decimal
@@ -158,5 +173,16 @@ mod tests {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
         assert_eq!(cpu.accumulator, 0x22);
+    }
+
+    #[test]
+    fn test_sta_absolute() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x42;
+        cpu.asm_sta_absolute(&[0x22, 0x10]);
+
+        let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
+        assert_eq!(0x42, actual);
     }
 }
