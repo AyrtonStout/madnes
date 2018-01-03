@@ -1,17 +1,18 @@
 
+// I might never use these with the way things are going. Commented them out to remove unused warnings
 #[derive(Clone, Copy, Debug)]
 pub enum AddressingMode {
-    Immediate,
-    Absolute,
-    ZeroPageAbsolute,
+//    Immediate,
+//    Absolute,
+//    ZeroPageAbsolute,
     Implied,
-    Accumulator,
-    Indexed,
-    ZeroPageIndexed,
-    Indirect,
-    PreIndexedIndirect,
-    PostIndexedIndirect,
-    Relative,
+//    Accumulator,
+//    Indexed,
+//    ZeroPageIndexed,
+//    Indirect,
+//    PreIndexedIndirect,
+//    PostIndexedIndirect,
+//    Relative,
     Empty
 }
 

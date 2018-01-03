@@ -9,10 +9,12 @@ impl CPUMemory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_8_bit_value(&self, address: u16) -> u8 {
         return self.memory[address as usize];
     }
 
+    #[allow(dead_code)]
     pub fn get_16_bit_value(&self, address: u16) -> u16 {
         // Little Endian. Low byte is stored first
         let high_byte: u16 = (self.memory[address as usize + 1] as u16) << 8;
@@ -26,6 +28,7 @@ impl CPUMemory {
         self.memory[address as usize] = value;
     }
 
+    #[allow(dead_code)]
     pub fn set_16_bit_value(&mut self, address: u16, value: u16) {
         CPUMemory::check_valid_write(address);
 

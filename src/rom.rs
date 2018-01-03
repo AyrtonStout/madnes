@@ -50,21 +50,6 @@ pub fn read_file() -> Result<Rom, String> {
     });
 }
 
-pub fn print_rom(bytes_to_print: usize) {
-    let mut buffer = vec![0; 10];
-//    let mut file = File::open("Super Mario Bros 3 (E).nes").expect("Bad things");
-    let mut file = File::open("Super Mario Bros (E)").expect("Bad things");
-//    let mut file = File::open("Contra (USA).nes").expect("Bad things");
-
-    file.read_to_end(&mut buffer).expect("More bad things");
-
-    let rom_data = buffer.as_slice(); // We no longer need the mutable vector
-
-    for i in 0..bytes_to_print {
-        print!("{:X} ", rom_data[i]);
-    }
-}
-
 fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
     if buffer.len() == 0 {
         return Err("ROM data buffer was empty".to_owned());
