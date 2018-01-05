@@ -48,6 +48,7 @@ impl CPU {
                 0x9A => { self.asm_txs(); }
                 0xA2 => { self.asm_ldx_immediate(instruction_data); }
                 0xA9 => { self.asm_lda_immediate(instruction_data); }
+                0xAD => { self.asm_lda_absolute(instruction_data); }
                 0xD8 => { self.asm_cld(); }
                 _ => {
                     println!("Found unimplemented opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
@@ -123,6 +124,12 @@ impl CPU {
         self.accumulator = instruction_data[0];
     }
 
+    // AD - Loads a specific value into the accumulator
+    fn asm_lda_absolute(&mut self, instruction_data: &[u8]) {
+        let address = CPU::convert_to_address(instruction_data);
+        self.accumulator = self.memory.get_8_bit_value(address);
+    }
+
     // D8 - Sets the operational mode to binary instead of decimal
     fn asm_cld(&mut self) {
         self.status_register &= !0x08;
@@ -194,6 +201,14 @@ mod tests {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
         assert_eq!(cpu.accumulator, 0x22);
+    }
+
+    #[test]
+    fn test_lda_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x0271, 0xB4);
+        cpu.asm_lda_absolute(&[0x71, 0x02]);
+        assert_eq!(cpu.accumulator, 0xB4);
     }
 
     #[test]

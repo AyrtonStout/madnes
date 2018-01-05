@@ -2,6 +2,9 @@ pub struct CPUMemory {
     memory: [u8; 0xFFFF]
 }
 
+//TODO need to somehow implement memory mirroring on either the getters or the setters
+//Not sure which is better yet... probably setters tho
+
 impl CPUMemory {
     pub fn new() -> CPUMemory {
         return CPUMemory {
