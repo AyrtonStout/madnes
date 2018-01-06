@@ -84,15 +84,8 @@ impl CPU {
     fn asm_bpl(&mut self, instruction_data: &[u8]) {
         if self.is_result_negative() { return; }
 
-        // The offset is treated as a sign-magnitude number. Not 2s complement
-        let is_negative = (instruction_data[0] & 0x80) == 0x80;
-        let offset: u8 = instruction_data[0] & !0x80;
-
-        if is_negative {
-            self.program_counter -= offset as u16;
-        } else {
-            self.program_counter += offset as u16;
-        }
+        let offset: i8 = instruction_data[0] as i8;
+        self.program_counter = (self.program_counter as i32 + offset as i32) as u16;
     }
 
     // 78 - Sets interrupts as being disabled
@@ -153,7 +146,7 @@ mod tests {
     fn test_bpl_negative_offset() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x20;
-        cpu.asm_bpl(&[0x87]);
+        cpu.asm_bpl(&[0xF9]);
         assert_eq!(cpu.program_counter, 0x19);
     }
 

@@ -12,6 +12,10 @@ impl CPUMemory {
         }
     }
 
+    pub fn init_prg_rom(prg_rom: Vec<u8>) {
+
+    }
+
     #[allow(dead_code)]
     pub fn get_8_bit_value(&self, address: u16) -> u8 {
         return self.memory[address as usize];
