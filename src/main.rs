@@ -1,4 +1,4 @@
-
+mod ppu;
 mod rom_header;
 mod cpu_memory;
 
