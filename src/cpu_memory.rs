@@ -1,5 +1,5 @@
 pub struct CPUMemory {
-    memory: [u8; 0xFFFF]
+    memory: [u8; 0x10000]
 }
 
 //TODO need to somehow implement memory mirroring on either the getters or the setters
@@ -8,7 +8,7 @@ pub struct CPUMemory {
 impl CPUMemory {
     pub fn new() -> CPUMemory {
         return CPUMemory {
-            memory: [0; 0xFFFF]
+            memory: [0; 0x10000]
         }
     }
 
@@ -22,7 +22,7 @@ impl CPUMemory {
     pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
         // TODO this will need to be more sophisticated with a ROM that requires bank switching. Should handle this with pointers to different banks
         // TODO can try to use https://stackoverflow.com/a/28224758 here instead of looping
-        for i in 0..prg_rom.len() - 1 {
+        for i in 0..prg_rom.len() {
             let rom_byte = prg_rom[i];
             self.memory[0x8000 + i] = rom_byte;
         }
@@ -43,7 +43,7 @@ impl CPUMemory {
 
     pub fn get_memory_range(&self, address: u16, num_bytes: u16) -> Vec<u8> {
         let memory: &[u8] = &self.memory[(address as usize)..(address as usize + num_bytes as usize)];
-        let mut memory_copy: Vec<u8> = Vec::new();
+        let mut memory_copy: Vec<u8> = vec![0; num_bytes as usize];
         memory_copy.copy_from_slice(memory);
         return memory_copy;
     }
@@ -114,4 +114,28 @@ mod tests {
         memory.set_16_bit_value(0x8000, 0x4242); // 8 bit value stored as 16
     }
 
+    #[test]
+    fn get_memory_range() {
+        let mut memory: CPUMemory = CPUMemory::new();
+        memory.memory[0] = 1;
+        memory.memory[1] = 2;
+        memory.memory[2] = 3;
+        memory.memory[3] = 4;
+
+        let bytes = memory.get_memory_range(2, 1);
+        assert_eq!(bytes[0], 3);
+
+        let bytes2 = memory.get_memory_range(1, 2);
+        assert_eq!(bytes2[0], 2);
+        assert_eq!(bytes2[1], 3);
+    }
+
+    #[test]
+    fn init_prg_rom() {
+        let mut memory: CPUMemory = CPUMemory::new();
+        memory.init_prg_rom(vec![0xFF as u8; 0x8000]);
+        assert_eq!(memory.get_8_bit_value(0x7999), 0x00);
+        assert_eq!(memory.get_8_bit_value(0x8000), 0xFF);
+        assert_eq!(memory.get_8_bit_value(0xFFFF), 0xFF);
+    }
 }

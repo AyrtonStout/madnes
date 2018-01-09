@@ -1,4 +1,3 @@
-use instruction_set::InstructionType;
 use instruction_set::get_instruction;
 use cpu_memory::CPUMemory;
 
@@ -35,9 +34,9 @@ impl CPU {
     pub fn tick(&mut self) {
         let memory_start = self.program_counter + PRG_ROM_OFFSET;
         let opcode: u8 = self.memory.get_8_bit_value(memory_start);
-        let num_bytes: u8 = get_instruction(opcode).num_bytes - 1; // -1 to remove opcode
+        let num_bytes: u8 = get_instruction(opcode).num_bytes;
 
-        let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16);
+        let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16 - 1);
 
         // Some instructions (like BPL) seem to indicate that the program counter is incremented prior to the instruction's action
         self.program_counter += num_bytes as u16;
@@ -56,7 +55,7 @@ impl CPU {
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xD8 => { self.asm_cld(); }
             _ => {
-                println!("Found unimplemented opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
+                println!("Found unimplemented opcode {:X}", opcode);
             }
         }
     }
@@ -260,5 +259,22 @@ mod tests {
 
         assert_eq!(cpu.memory.get_8_bit_value(0x0100), 0x14);
         assert_eq!(cpu.stack_pointer, 0xFF);
+    }
+
+    #[test]
+    fn instruction_chaining() {
+        // These are the first few instructions of Super Mario Bros 1.
+        // More of an integration test. Tests for stuff like program counter increments
+
+        let mut cpu: CPU = CPU::new();
+        cpu.init_prg_rom(vec![0x78, 0xD8, 0xA9, 0x10]);
+        cpu.tick(); // Executes 0x78
+        cpu.tick(); // Executes 0xD8
+        cpu.tick(); // Executes 0xA9 [0x10]
+
+        assert_eq!(cpu.are_interrupts_disabled(), true);
+        assert_eq!(cpu.is_in_decimal_mode(), false);
+        assert_eq!(cpu.accumulator, 0x10);
+        assert_eq!(cpu.program_counter, 4);
     }
 }
