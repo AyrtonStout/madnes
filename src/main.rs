@@ -1,31 +1,31 @@
-mod ppu;
 mod rom_header;
 mod cpu_memory;
-
 mod rom;
-use rom::Rom as Rom;
-
+mod cpu;
+mod ppu;
 mod instruction_set;
 
-mod cpu;
+use rom::Rom as Rom;
 use cpu::CPU as CPU;
-
+use ppu::PPU as PPU;
+use std::thread;
+use std::time::Duration;
 
 fn main() {
     let rom: Rom = rom::read_file().expect("Wow just terrible");
-
-    for i in 0..rom.prg_rom.len() {
-        print!("{:X} ", rom.prg_rom[i]);
-    }
-//    println!("{}", rom.rom_header.chr_rom_size);
-    println!("{}", rom.prg_rom.len());
-    println!("{}", rom.chr_rom.len());
-
-//    println!("{}", rom.rom_header.get_mapper_number());
-
     let mut cpu: CPU = CPU::new();
+    cpu.init_prg_rom(rom.prg_rom);
+    let mut ppu: PPU = PPU::new(cpu.get_ppu_io_registers_address());
 
-    cpu.read_program_instructions(rom.prg_rom);
+    // 46.561 microseconds
+    let sleep_nanoseconds = Duration::new(0, 46_561_000);
+
+    loop {
+        // Jank timer 'implementation'
+        thread::sleep(sleep_nanoseconds);
+        cpu.tick();
+        ppu.tick();
+    }
 }
 
 /*

@@ -12,8 +12,20 @@ impl CPUMemory {
         }
     }
 
-    pub fn init_prg_rom(prg_rom: Vec<u8>) {
+    pub fn get_ppu_io_registers(&mut self) -> *mut u8 {
+        unsafe {
+            let first_address: *mut u8 = self.memory.first_mut().unwrap();
+            return first_address.offset(0x2000);
+        }
+    }
 
+    pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
+        // TODO this will need to be more sophisticated with a ROM that requires bank switching. Should handle this with pointers to different banks
+        // TODO can try to use https://stackoverflow.com/a/28224758 here instead of looping
+        for i in 0..prg_rom.len() - 1 {
+            let rom_byte = prg_rom[i];
+            self.memory[0x8000 + i] = rom_byte;
+        }
     }
 
     #[allow(dead_code)]
@@ -27,6 +39,13 @@ impl CPUMemory {
         let high_byte: u16 = (self.memory[address as usize + 1] as u16) << 8;
         let low_byte: u16 = self.memory[address as usize] as u16;
         return high_byte | low_byte;
+    }
+
+    pub fn get_memory_range(&self, address: u16, num_bytes: u16) -> Vec<u8> {
+        let memory: &[u8] = &self.memory[(address as usize)..(address as usize + num_bytes as usize)];
+        let mut memory_copy: Vec<u8> = Vec::new();
+        memory_copy.copy_from_slice(memory);
+        return memory_copy;
     }
 
     pub fn set_8_bit_value(&mut self, address: u16, value: u8) {

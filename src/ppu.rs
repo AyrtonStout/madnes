@@ -1,6 +1,3 @@
-//use instruction_set::InstructionType;
-//use instruction_set::get_instruction;
-//use cpu_memory::CPUMemory;
 
 pub struct PPU {
     ppu_control_register_1: *const u8, // 0x2000 Read-only
@@ -17,7 +14,7 @@ impl PPU {
     pub fn new(io_registers: *mut u8) -> PPU {
         unsafe {
             return PPU {
-                ppu_control_register_1: io_registers,
+                ppu_control_register_1: io_registers.offset(0),
                 ppu_control_register_2: io_registers.offset(1),
                 ppu_status_register: io_registers.offset(2),
                 spr_ram_address_register: io_registers.offset(3),
@@ -27,6 +24,10 @@ impl PPU {
                 vram_io_register: io_registers.offset(7),
             }
         }
+    }
+
+    pub fn tick(&self) {
+
     }
 
 //    pub fn read_program_instructions(&mut self, prg_rom: Vec<u8>) {

@@ -2,6 +2,9 @@ use instruction_set::InstructionType;
 use instruction_set::get_instruction;
 use cpu_memory::CPUMemory;
 
+static STACK_POINTER_OFFSET: u16 = 0x100;
+static PRG_ROM_OFFSET: u16 = 0x8000;
+
 pub struct CPU {
     program_counter: u16,
     stack_pointer: u8,
@@ -12,49 +15,54 @@ pub struct CPU {
     memory: CPUMemory
 }
 
-static STACK_POINTER_OFFSET: u16 = 0x100;
-
 impl CPU {
     pub fn new() -> CPU {
         return CPU {
-            program_counter: 0, // TODO this probably needs to start at prg_memory... not 0
+            program_counter: 0,
             stack_pointer: 0xFF, // This will grow downward (decrement) down to 0. Then it wraps around back to 0xFF
             status_register: 0,
             accumulator: 0,
             x_register: 0,
             y_register: 0,
-            memory: CPUMemory::new() // TODO need to init this with the prg_memory at some point probably
+            memory: CPUMemory::new()
         }
     }
 
-    pub fn read_program_instructions(&mut self, prg_rom: Vec<u8>) {
-        while self.program_counter < prg_rom.len() as u16 {
-            let opcode = prg_rom[self.program_counter as usize];
-            let instruction_type: InstructionType = get_instruction(opcode);
-//            println!("Moving {} bytes forward", instruction_type.num_bytes);
-            let instruction_start_byte = (self.program_counter + 1) as usize;
-            let instruction_end_byte = (self.program_counter + instruction_type.num_bytes as u16) as usize;
+    pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
+        self.memory.init_prg_rom(prg_rom);
+    }
 
-            // instruction_data is the data after the opcode. Depending on the instruction it might be of length 0, 1, or 2
-            let instruction_data: &[u8] = &prg_rom[instruction_start_byte..instruction_end_byte];
+    pub fn tick(&mut self) {
+        let memory_start = self.program_counter + PRG_ROM_OFFSET;
+        let opcode: u8 = self.memory.get_8_bit_value(memory_start);
+        let num_bytes: u8 = get_instruction(opcode).num_bytes - 1; // -1 to remove opcode
 
-            // Some instructions (like BPL) seem to indicate that the program counter is incremented prior to the instruction's action
-            self.program_counter += instruction_type.num_bytes as u16;
+        let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16);
 
-            match opcode {
-                0x10 => { self.asm_bpl(instruction_data) }
-                0x78 => { self.asm_sei(); }
-                0x8D => { self.asm_sta_absolute(instruction_data); }
-                0x9A => { self.asm_txs(); }
-                0xA2 => { self.asm_ldx_immediate(instruction_data); }
-                0xA9 => { self.asm_lda_immediate(instruction_data); }
-                0xAD => { self.asm_lda_absolute(instruction_data); }
-                0xD8 => { self.asm_cld(); }
-                _ => {
-                    println!("Found unimplemented opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
-                }
+        // Some instructions (like BPL) seem to indicate that the program counter is incremented prior to the instruction's action
+        self.program_counter += num_bytes as u16;
+
+        self.handle_instruction(opcode, instruction_data.as_slice());
+    }
+
+    fn handle_instruction(&mut self, opcode: u8, instruction_data: &[u8]) {
+        match opcode {
+            0x10 => { self.asm_bpl(instruction_data) }
+            0x78 => { self.asm_sei(); }
+            0x8D => { self.asm_sta_absolute(instruction_data); }
+            0x9A => { self.asm_txs(); }
+            0xA2 => { self.asm_ldx_immediate(instruction_data); }
+            0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xAD => { self.asm_lda_absolute(instruction_data); }
+            0xD8 => { self.asm_cld(); }
+            _ => {
+                println!("Found unimplemented opcode {:X} at byte {:X}", opcode, self.program_counter as usize);
             }
         }
+    }
+
+    pub fn get_ppu_io_registers_address(&mut self) -> *mut u8 {
+        return self.memory.get_ppu_io_registers();
     }
 
     fn convert_to_address(address_data: &[u8]) -> u16 {
