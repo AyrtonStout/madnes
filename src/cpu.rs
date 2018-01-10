@@ -64,6 +64,14 @@ impl CPU {
         return self.memory.get_ppu_io_registers();
     }
 
+    fn set_sign_bit(&mut self, result: u8) {
+        if (result & 0x80) == 0x80 {
+            self.status_register |= 0x80;
+        } else {
+            self.status_register &= !0x80;
+        }
+    }
+
     fn convert_to_address(address_data: &[u8]) -> u16 {
         if address_data.len() == 2 {
             return ((address_data[1] as u16) << 8) | (address_data[0] as u16);
@@ -116,18 +124,23 @@ impl CPU {
 
     // A2 - Loads a specific value into the X register
     fn asm_ldx_immediate(&mut self, instruction_data: &[u8]) {
+        self.set_sign_bit(instruction_data[0]);
         self.x_register = instruction_data[0];
     }
 
     // A9 - Loads a specific value into the accumulator
     fn asm_lda_immediate(&mut self, instruction_data: &[u8]) {
+        self.set_sign_bit(instruction_data[0]);
         self.accumulator = instruction_data[0];
     }
 
     // AD - Loads a specific value into the accumulator
     fn asm_lda_absolute(&mut self, instruction_data: &[u8]) {
         let address = CPU::convert_to_address(instruction_data);
-        self.accumulator = self.memory.get_8_bit_value(address);
+        let memory_value = self.memory.get_8_bit_value(address);
+
+        self.set_sign_bit(memory_value);
+        self.accumulator = memory_value;
     }
 
     // D8 - Sets the operational mode to binary instead of decimal
@@ -201,6 +214,11 @@ mod tests {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
         assert_eq!(cpu.accumulator, 0x22);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_lda_immediate(&[0xA2]);
+        assert_eq!(cpu.accumulator, 0xA2);
+        assert_eq!(cpu.is_result_negative(), true);
     }
 
     #[test]
@@ -209,6 +227,12 @@ mod tests {
         cpu.memory.set_8_bit_value(0x0271, 0xB4);
         cpu.asm_lda_absolute(&[0x71, 0x02]);
         assert_eq!(cpu.accumulator, 0xB4);
+        assert_eq!(cpu.is_result_negative(), true);
+
+        cpu.memory.set_8_bit_value(0x0272, 0x04);
+        cpu.asm_lda_absolute(&[0x72, 0x02]);
+        assert_eq!(cpu.accumulator, 0x04);
+        assert_eq!(cpu.is_result_negative(), false);
     }
 
     #[test]
@@ -226,7 +250,13 @@ mod tests {
     fn test_ldx_immediate() {
         let mut cpu: CPU = CPU::new();
         cpu.asm_ldx_immediate(&[0x52]);
+
         assert_eq!(0x52, cpu.x_register);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_ldx_immediate(&[0x98]);
+        assert_eq!(0x98, cpu.x_register);
+        assert_eq!(cpu.is_result_negative(), true);
     }
 
     #[test]
