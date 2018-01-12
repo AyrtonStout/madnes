@@ -50,6 +50,7 @@ impl CPU {
             0x78 => { self.asm_sei(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x9A => { self.asm_txs(); }
+            0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
@@ -120,6 +121,12 @@ impl CPU {
         let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
         self.memory.set_8_bit_value(stack_address, self.x_register);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
+    }
+
+    // A0 - Loads a specific value into the Y register
+    fn asm_ldy_immediate(&mut self, instruction_data: &[u8]) {
+        self.set_sign_bit(instruction_data[0]);
+        self.y_register = instruction_data[0];
     }
 
     // A2 - Loads a specific value into the X register
@@ -244,6 +251,19 @@ mod tests {
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
         assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_ldy_immediate() {
+        let mut cpu: CPU = CPU::new();
+        cpu.asm_ldy_immediate(&[0x52]);
+
+        assert_eq!(0x52, cpu.y_register);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_ldy_immediate(&[0x98]);
+        assert_eq!(0x98, cpu.y_register);
+        assert_eq!(cpu.is_result_negative(), true);
     }
 
     #[test]
