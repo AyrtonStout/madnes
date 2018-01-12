@@ -53,6 +53,7 @@ impl CPU {
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xD8 => { self.asm_cld(); }
             _ => {
@@ -150,6 +151,19 @@ impl CPU {
         self.accumulator = memory_value;
     }
 
+    // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
+    //      Loads the value stored at this memory location into the accumulator
+    fn asm_lda_absolute_x(&mut self, instruction_data: &[u8]) {
+        let address = CPU::convert_to_address(instruction_data);
+        // Temporarily convert to signed numbers because x_register might be negative
+        let x_register = (self.x_register as i8) as i16; // Sign extend the number as a (potential) negative number
+        let computed_address = address as i16 + x_register;
+
+        let memory_value = self.memory.get_8_bit_value(computed_address as u16);
+        self.set_sign_bit(memory_value);
+        self.accumulator = memory_value;
+    }
+
     // D8 - Sets the operational mode to binary instead of decimal
     fn asm_cld(&mut self) {
         self.status_register &= !0x08;
@@ -240,6 +254,24 @@ mod tests {
         cpu.asm_lda_absolute(&[0x72, 0x02]);
         assert_eq!(cpu.accumulator, 0x04);
         assert_eq!(cpu.is_result_negative(), false);
+    }
+
+    #[test]
+    fn test_lda_absolute_x() {
+        let mut cpu: CPU = CPU::new();
+        cpu.x_register = 0x38;
+        cpu.memory.set_8_bit_value(0x616B, 0x50);
+
+        cpu.asm_lda_absolute_x(&[0x33, 0x61]);
+        assert_eq!(cpu.accumulator, 0x50);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.x_register = 0xFE;
+        cpu.memory.set_8_bit_value(0x6131, 0xB2);
+
+        cpu.asm_lda_absolute_x(&[0x33, 0x61]);
+        assert_eq!(cpu.accumulator, 0xB2);
+        assert_eq!(cpu.is_result_negative(), true);
     }
 
     #[test]
