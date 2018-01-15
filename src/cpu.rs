@@ -47,6 +47,7 @@ impl CPU {
     fn handle_instruction(&mut self, opcode: u8, instruction_data: &[u8]) {
         match opcode {
             0x10 => { self.asm_bpl(instruction_data) }
+            0x20 => { self.asm_jsr(instruction_data) }
             0x78 => { self.asm_sei(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x9A => { self.asm_txs(); }
