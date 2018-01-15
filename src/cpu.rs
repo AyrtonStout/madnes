@@ -102,6 +102,12 @@ impl CPU {
         }
     }
 
+    fn push_stack(&mut self, value_to_write: u8) {
+        let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
+        self.memory.set_8_bit_value(stack_address, value_to_write);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
+    }
+
     #[allow(dead_code)]
     pub fn are_interrupts_disabled(&self) -> bool {
         return (self.status_register & 0x04) == 0x04;
@@ -136,6 +142,14 @@ impl CPU {
         self.branch(instruction_data[0]);
     }
 
+    // 20 - Have program start executing from a new address. Store current address on the stack
+    fn asm_jsr(&mut self, instruction_data: &[u8]) {
+        let return_address = self.program_counter - 1;
+        self.push_stack((return_address >> 8) as u8);
+        self.push_stack((return_address & 0x00FF) as u8);
+        self.program_counter = CPU::convert_to_address(instruction_data);
+    }
+
     // 78 - Sets interrupts as being disabled
     fn asm_sei(&mut self) {
         self.status_register |= 0x04;
@@ -150,9 +164,8 @@ impl CPU {
 
     // 9A - Copies the X register to the stack and moves the stack pointer
     fn asm_txs(&mut self) {
-        let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
-        self.memory.set_8_bit_value(stack_address, self.x_register);
-        self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
+        let x_register = self.x_register;
+        self.push_stack(x_register);
     }
 
     // A0 - Loads a specific value into the Y register
@@ -480,7 +493,18 @@ mod tests {
         assert_eq!(cpu.x_register, 0xFF);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_result_negative(), true);
+    }
 
+    #[test]
+    fn test_jsr() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x8054;
+        cpu.asm_jsr(&[0x35, 0x90]);
+
+        assert_eq!(cpu.program_counter, 0x9035);
+        assert_eq!(cpu.stack_pointer, 0xFD);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1FF), 0x80);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1FE), 0x53);
     }
 
     #[test]
@@ -499,9 +523,17 @@ mod tests {
     fn instruction_chaining() {
         // These are the first few instructions of Super Mario Bros 1.
         // More of an integration test. Tests for stuff like program counter increments
+        let mut prg_rom: Vec<u8> = vec![0 as u8; 0x8000];
+        prg_rom[0x0000] = 0x78; // Instruction data
+        prg_rom[0x0001] = 0xD8;
+        prg_rom[0x0002] = 0xA9;
+        prg_rom[0x0003] = 0x10;
+
+        prg_rom[0x7FFC] = 0x00; // Reset vector. Initializes program counter to 8000
+        prg_rom[0x7FFD] = 0x80;
 
         let mut cpu: CPU = CPU::new();
-        cpu.init_prg_rom(vec![0x78, 0xD8, 0xA9, 0x10]);
+        cpu.init_prg_rom(prg_rom);
         cpu.tick(); // Executes 0x78
         cpu.tick(); // Executes 0xD8
         cpu.tick(); // Executes 0xA9 [0x10]
@@ -509,6 +541,6 @@ mod tests {
         assert_eq!(cpu.are_interrupts_disabled(), true);
         assert_eq!(cpu.is_in_decimal_mode(), false);
         assert_eq!(cpu.accumulator, 0x10);
-        assert_eq!(cpu.program_counter, 4);
+        assert_eq!(cpu.program_counter, 0x8004);
     }
 }
