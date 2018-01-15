@@ -55,6 +55,7 @@ impl CPU {
             0xA9 => { self.asm_lda_immediate(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
+            0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xD8 => { self.asm_cld(); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
@@ -64,6 +65,22 @@ impl CPU {
 
     pub fn get_ppu_io_registers_address(&mut self) -> *mut u8 {
         return self.memory.get_ppu_io_registers();
+    }
+
+    fn set_carry_bit(&mut self, is_set: bool) {
+        if is_set {
+            self.status_register |= 0x01;
+        } else {
+            self.status_register &= !0x01;
+        }
+    }
+
+    fn set_zero_bit(&mut self, is_set: bool) {
+        if is_set {
+            self.status_register |= 0x02;
+        } else {
+            self.status_register &= !0x02;
+        }
     }
 
     fn set_sign_bit(&mut self, result: u8) {
@@ -95,6 +112,14 @@ impl CPU {
 
     pub fn is_result_negative(&self) -> bool {
         return (self.status_register & 0x80) == 0x80;
+    }
+
+    pub fn is_carry_set(&self) -> bool {
+        return (self.status_register & 0x01) == 0x01;
+    }
+
+    pub fn is_zero_set(&self) -> bool {
+        return (self.status_register & 0x02) == 0x02;
     }
 
     // 10 - Branches on 'result plus' - the result being a positive number
@@ -162,6 +187,17 @@ impl CPU {
         let memory_value = self.memory.get_8_bit_value(computed_address as u16);
         self.set_sign_bit(memory_value);
         self.accumulator = memory_value;
+    }
+
+    // C9 - Compare literal value with value stored in accumulator
+    fn asm_cmp_immediate(&mut self, instruction_data: &[u8]) {
+        let accumulator = self.accumulator;
+        let src: u8 = instruction_data[0];
+        self.set_carry_bit(accumulator >= src);
+        self.set_zero_bit(accumulator == src);
+
+        let difference = accumulator.wrapping_sub(src);
+        self.set_sign_bit(difference);
     }
 
     // D8 - Sets the operational mode to binary instead of decimal
@@ -309,6 +345,27 @@ mod tests {
         cpu.asm_ldx_immediate(&[0x98]);
         assert_eq!(0x98, cpu.x_register);
         assert_eq!(cpu.is_result_negative(), true);
+    }
+
+    #[test]
+    fn test_cmp_immediate() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x30;
+        cpu.asm_cmp_immediate(&[0x20]);
+
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.asm_cmp_immediate(&[0x30]);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.asm_cmp_immediate(&[0x94]);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_zero_set(), false);
     }
 
     #[test]
