@@ -57,6 +57,8 @@ impl CPU {
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
+            0xCA => { self.asm_dex(); }
+            0xD0 => { self.asm_bne(instruction_data); }
             0xD8 => { self.asm_cld(); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
@@ -200,14 +202,6 @@ impl CPU {
         self.accumulator = memory_value;
     }
 
-    // C0 - Decrements X register by 1
-    fn asm_dex(&mut self) {
-        let x_register: u8 = self.x_register.wrapping_sub(1);
-        self.set_sign_bit(x_register);
-        self.set_zero_bit(x_register == 0);
-        self.x_register = x_register;
-    }
-
     // C9 - Compare literal value with value stored in accumulator
     fn asm_cmp_immediate(&mut self, instruction_data: &[u8]) {
         let accumulator = self.accumulator;
@@ -217,6 +211,21 @@ impl CPU {
 
         let difference = accumulator.wrapping_sub(src);
         self.set_sign_bit(difference);
+    }
+
+    // CA - Decrements X register by 1
+    fn asm_dex(&mut self) {
+        let x_register: u8 = self.x_register.wrapping_sub(1);
+        self.set_sign_bit(x_register);
+        self.set_zero_bit(x_register == 0);
+        self.x_register = x_register;
+    }
+
+    // D0 - Branch on result not zero
+    fn asm_bne(&mut self, instruction_data: &[u8]) {
+        if self.is_zero_set() { return; }
+
+        self.branch(instruction_data[0]);
     }
 
     // D8 - Sets the operational mode to binary instead of decimal
@@ -231,19 +240,27 @@ mod tests {
     use cpu::CPU;
 
     #[test]
-    fn test_bpl_positive_offset() {
+    fn test_branch_positive_offset() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x30;
+        cpu.branch(0x08);
+        assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_branch_negative_offset() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x38;
+        cpu.branch(0xFA);
+        assert_eq!(cpu.program_counter, 0x32);
+    }
+
+    #[test]
+    fn test_bpl() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x20;
         cpu.asm_bpl(&[0x17]);
         assert_eq!(cpu.program_counter, 0x37);
-    }
-
-    #[test]
-    fn test_bpl_negative_offset() {
-        let mut cpu: CPU = CPU::new();
-        cpu.program_counter = 0x20;
-        cpu.asm_bpl(&[0xF9]);
-        assert_eq!(cpu.program_counter, 0x19);
     }
 
     #[test]
@@ -256,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bcs_positive_offset() {
+    fn test_bcs() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x30;
         cpu.status_register = 0x01;
@@ -266,23 +283,31 @@ mod tests {
     }
 
     #[test]
-    fn test_bcs_negative_offset() {
-        let mut cpu: CPU = CPU::new();
-        cpu.program_counter = 0x38;
-        cpu.status_register = 0x01;
-        cpu.asm_bcs(&[0xFA]);
-
-        assert_eq!(cpu.program_counter, 0x32);
-    }
-
-    #[test]
     fn test_bcs_negative_condition() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x38;
-        cpu.status_register = 0x00;
         cpu.asm_bcs(&[0xFA]);
 
         assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_bne() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x30;
+        cpu.asm_bne(&[0x08]);
+
+        assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_bne_negative_condition() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x30;
+        cpu.status_register = 0x02;
+        cpu.asm_bne(&[0x08]);
+
+        assert_eq!(cpu.program_counter, 0x30);
     }
 
     #[test]
