@@ -53,6 +53,7 @@ impl CPU {
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
@@ -122,12 +123,15 @@ impl CPU {
         return (self.status_register & 0x02) == 0x02;
     }
 
+    fn branch(&mut self, offset: u8) {
+        self.program_counter = (self.program_counter as i32 + (offset as i8) as i32) as u16;
+    }
+
     // 10 - Branches on 'result plus' - the result being a positive number
     fn asm_bpl(&mut self, instruction_data: &[u8]) {
         if self.is_result_negative() { return; }
 
-        let offset: i8 = instruction_data[0] as i8;
-        self.program_counter = (self.program_counter as i32 + offset as i32) as u16;
+        self.branch(instruction_data[0]);
     }
 
     // 78 - Sets interrupts as being disabled
@@ -174,6 +178,13 @@ impl CPU {
 
         self.set_sign_bit(memory_value);
         self.accumulator = memory_value;
+    }
+
+    // B0 - Branch when carry is set
+    fn asm_bcs(&mut self, instruction_data: &[u8]) {
+        if !self.is_carry_set() { return; }
+
+        self.branch(instruction_data[0]);
     }
 
     // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
@@ -234,6 +245,36 @@ mod tests {
         cpu.status_register = 0x80;
         cpu.asm_bpl(&[0x87]);
         assert_eq!(cpu.program_counter, 0x30);
+    }
+
+    #[test]
+    fn test_bcs_positive_offset() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x30;
+        cpu.status_register = 0x01;
+        cpu.asm_bcs(&[0x08]);
+
+        assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_bcs_negative_offset() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x38;
+        cpu.status_register = 0x01;
+        cpu.asm_bcs(&[0xFA]);
+
+        assert_eq!(cpu.program_counter, 0x32);
+    }
+
+    #[test]
+    fn test_bcs_negative_condition() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x38;
+        cpu.status_register = 0x00;
+        cpu.asm_bcs(&[0xFA]);
+
+        assert_eq!(cpu.program_counter, 0x38);
     }
 
     #[test]
