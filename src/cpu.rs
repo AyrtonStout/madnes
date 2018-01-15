@@ -2,7 +2,6 @@ use instruction_set::get_instruction;
 use cpu_memory::CPUMemory;
 
 static STACK_POINTER_OFFSET: u16 = 0x100;
-static PRG_ROM_OFFSET: u16 = 0x8000;
 
 pub struct CPU {
     program_counter: u16,
@@ -29,10 +28,11 @@ impl CPU {
 
     pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
         self.memory.init_prg_rom(prg_rom);
+        self.program_counter = self.memory.get_reset_vector();
     }
 
     pub fn tick(&mut self) {
-        let memory_start = self.program_counter + PRG_ROM_OFFSET;
+        let memory_start = self.program_counter;
         let opcode: u8 = self.memory.get_8_bit_value(memory_start);
         let num_bytes: u8 = get_instruction(opcode).num_bytes;
 

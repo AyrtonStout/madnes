@@ -28,6 +28,10 @@ impl CPUMemory {
         }
     }
 
+    pub fn get_reset_vector(&self) -> u16 {
+        return ((self.memory[0xFFFD] as u16) << 8) | (self.memory[0xFFFC] as u16);
+    }
+
     #[allow(dead_code)]
     pub fn get_8_bit_value(&self, address: u16) -> u8 {
         return self.memory[address as usize];
