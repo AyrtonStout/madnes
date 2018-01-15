@@ -200,6 +200,14 @@ impl CPU {
         self.accumulator = memory_value;
     }
 
+    // C0 - Decrements X register by 1
+    fn asm_dex(&mut self) {
+        let x_register: u8 = self.x_register.wrapping_sub(1);
+        self.set_sign_bit(x_register);
+        self.set_zero_bit(x_register == 0);
+        self.x_register = x_register;
+    }
+
     // C9 - Compare literal value with value stored in accumulator
     fn asm_cmp_immediate(&mut self, instruction_data: &[u8]) {
         let accumulator = self.accumulator;
@@ -416,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn test_asm_txs() {
+    fn test_txs() {
         let mut cpu: CPU = CPU::new();
 
         cpu.x_register = 0x14;
@@ -427,6 +435,27 @@ mod tests {
 
         assert_eq!(cpu.memory.get_8_bit_value(0x01FF), 0x14);
         assert_eq!(cpu.memory.get_8_bit_value(0x01FE), 0x24);
+    }
+
+    #[test]
+    fn test_dex() {
+        let mut cpu: CPU = CPU::new();
+        cpu.x_register = 0x02;
+        cpu.asm_dex();
+        assert_eq!(cpu.x_register, 0x01);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_dex();
+        assert_eq!(cpu.x_register, 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_dex();
+        assert_eq!(cpu.x_register, 0xFF);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_result_negative(), true);
+
     }
 
     #[test]
