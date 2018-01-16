@@ -49,6 +49,7 @@ impl CPU {
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
             0x78 => { self.asm_sei(); }
+            0x85 => { self.asm_sta_zero_page(instruction_data); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x9A => { self.asm_txs(); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
@@ -154,6 +155,11 @@ impl CPU {
     // 78 - Sets interrupts as being disabled
     fn asm_sei(&mut self) {
         self.status_register |= 0x04;
+    }
+
+    // 85 - Puts the value stored in the accumulator into a specific address in the first page of memory
+    fn asm_sta_zero_page(&mut self, instruction_data: &[u8]) {
+        self.asm_sta_absolute(&[instruction_data[0], 0x00]);
     }
 
     // 8D - Puts the accumulator into a specific 2-byte memory address
@@ -406,6 +412,17 @@ mod tests {
         cpu.asm_sta_absolute(&[0x22, 0x10]);
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
+        assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_sta_zero_page() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x42;
+        cpu.asm_sta_zero_page(&[0x22]);
+
+        let actual: u8 = cpu.memory.get_8_bit_value(0x0022);
         assert_eq!(0x42, actual);
     }
 
