@@ -50,7 +50,9 @@ impl CPU {
             0x20 => { self.asm_jsr(instruction_data) }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
+            0x86 => { self.asm_stx_zero_page(instruction_data); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
+            0x8E => { self.asm_stx_absolute(instruction_data); }
             0x9A => { self.asm_txs(); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
@@ -162,11 +164,21 @@ impl CPU {
         self.asm_sta_absolute(&[instruction_data[0], 0x00]);
     }
 
+    // 86 - Puts the accumulator into a specific 2-byte memory address
+    fn asm_stx_zero_page(&mut self, instruction_data: &[u8]) {
+        self.asm_stx_absolute(&[instruction_data[0], 0x00]);
+    }
+
     // 8D - Puts the accumulator into a specific 2-byte memory address
     fn asm_sta_absolute(&mut self, instruction_data: &[u8]) {
         let address: u16 = CPU::convert_to_address(instruction_data);
-
         self.memory.set_8_bit_value(address, self.accumulator);
+    }
+
+    // 8E - Puts the accumulator into a specific 2-byte memory address
+    fn asm_stx_absolute(&mut self, instruction_data: &[u8]) {
+        let address: u16 = CPU::convert_to_address(instruction_data);
+        self.memory.set_8_bit_value(address, self.x_register);
     }
 
     // 9A - Copies the X register to the stack and moves the stack pointer
@@ -421,6 +433,28 @@ mod tests {
 
         cpu.accumulator = 0x42;
         cpu.asm_sta_zero_page(&[0x22]);
+
+        let actual: u8 = cpu.memory.get_8_bit_value(0x0022);
+        assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_stx_absolute() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.x_register = 0x42;
+        cpu.asm_stx_absolute(&[0x22, 0x10]);
+
+        let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
+        assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_stx_zero_page() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.x_register = 0x42;
+        cpu.asm_stx_zero_page(&[0x22]);
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x0022);
         assert_eq!(0x42, actual);
