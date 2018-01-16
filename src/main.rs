@@ -18,7 +18,7 @@ fn main() {
     let mut ppu: PPU = PPU::new(cpu.get_ppu_io_registers_address());
 
     // 46.561 microseconds
-    let sleep_nanoseconds = Duration::new(0, 46_561_000);
+    let sleep_nanoseconds = Duration::new(0, 46_561);
 
     loop {
         // Jank timer 'implementation'
