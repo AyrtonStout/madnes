@@ -64,6 +64,7 @@ impl CPU {
             0xCA => { self.asm_dex(); }
             0xD0 => { self.asm_bne(instruction_data); }
             0xD8 => { self.asm_cld(); }
+            0xE0 => { self.asm_cpx_immediate(instruction_data); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
             }
@@ -137,6 +138,15 @@ impl CPU {
 
     fn branch(&mut self, offset: u8) {
         self.program_counter = (self.program_counter as i32 + (offset as i8) as i32) as u16;
+    }
+
+    // C9 - Compare literal value with value stored in accumulator
+    fn compare(&mut self, cpu_data: u8, src: u8) {
+        self.set_carry_bit(cpu_data >= src);
+        self.set_zero_bit(cpu_data == src);
+
+        let difference = cpu_data.wrapping_sub(src);
+        self.set_sign_bit(difference);
     }
 
     // 10 - Branches on 'result plus' - the result being a positive number
@@ -237,12 +247,7 @@ impl CPU {
     // C9 - Compare literal value with value stored in accumulator
     fn asm_cmp_immediate(&mut self, instruction_data: &[u8]) {
         let accumulator = self.accumulator;
-        let src: u8 = instruction_data[0];
-        self.set_carry_bit(accumulator >= src);
-        self.set_zero_bit(accumulator == src);
-
-        let difference = accumulator.wrapping_sub(src);
-        self.set_sign_bit(difference);
+        self.compare(accumulator, instruction_data[0]);
     }
 
     // CA - Decrements X register by 1
@@ -263,6 +268,12 @@ impl CPU {
     // D8 - Sets the operational mode to binary instead of decimal
     fn asm_cld(&mut self) {
         self.status_register &= !0x08;
+    }
+
+    // E0 - Compare literal value with value stored in the x register
+    fn asm_cpx_immediate(&mut self, instruction_data: &[u8]) {
+        let x_register = self.x_register;
+        self.compare(x_register, instruction_data[0]);
     }
 
 }
@@ -487,7 +498,28 @@ mod tests {
     }
 
     #[test]
-    fn test_cmp_immediate() {
+    fn test_compare() {
+        let mut cpu: CPU = CPU::new();
+        let cpu_data = 0x30;
+        cpu.compare(cpu_data,0x20);
+
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.compare(cpu_data, 0x30);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.compare(cpu_data, 0x94);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_cmp_immediate() { // Most compare stuff is tested in the generic compare function
         let mut cpu: CPU = CPU::new();
         cpu.accumulator = 0x30;
         cpu.asm_cmp_immediate(&[0x20]);
@@ -495,15 +527,16 @@ mod tests {
         assert_eq!(cpu.is_carry_set(), true);
         assert_eq!(cpu.is_result_negative(), false);
         assert_eq!(cpu.is_zero_set(), false);
+    }
 
-        cpu.asm_cmp_immediate(&[0x30]);
+    #[test]
+    fn test_cpx_immediate() { // Most compare stuff is tested in the generic compare function
+        let mut cpu: CPU = CPU::new();
+        cpu.x_register = 0x30;
+        cpu.asm_cpx_immediate(&[0x20]);
+
         assert_eq!(cpu.is_carry_set(), true);
         assert_eq!(cpu.is_result_negative(), false);
-        assert_eq!(cpu.is_zero_set(), true);
-
-        cpu.asm_cmp_immediate(&[0x94]);
-        assert_eq!(cpu.is_carry_set(), false);
-        assert_eq!(cpu.is_result_negative(), true);
         assert_eq!(cpu.is_zero_set(), false);
     }
 
