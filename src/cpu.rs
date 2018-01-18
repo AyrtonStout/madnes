@@ -53,6 +53,7 @@ impl CPU {
             0x86 => { self.asm_stx_zero_page(instruction_data); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
+            0x91 => { self.asm_sta_post_indexed(instruction_data); }
             0x9A => { self.asm_txs(); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
@@ -105,6 +106,11 @@ impl CPU {
         } else {
             return address_data[0] as u16;
         }
+    }
+
+    fn get_post_indexed_indirect_address(&self, zero_page_address: u8) -> u16 {
+        let address: u16 = self.memory.get_16_bit_value(zero_page_address as u16);
+        return address + self.y_register as u16;
     }
 
     fn push_stack(&mut self, value_to_write: u8) {
@@ -189,6 +195,12 @@ impl CPU {
     fn asm_stx_absolute(&mut self, instruction_data: &[u8]) {
         let address: u16 = CPU::convert_to_address(instruction_data);
         self.memory.set_8_bit_value(address, self.x_register);
+    }
+
+    // 91 - Puts the accumulator into a post-indexed 2-byte memory address
+    fn asm_sta_post_indexed(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
+        self.memory.set_8_bit_value(address, self.accumulator);
     }
 
     // 9A - Copies the X register to the stack and moves the stack pointer
@@ -447,6 +459,20 @@ mod tests {
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x0022);
         assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_sta_post_indexed() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.memory.set_16_bit_value(0x004C, 0x2100);
+        cpu.y_register = 0x05;
+        cpu.accumulator = 0x15;
+
+        cpu.asm_sta_post_indexed(&[0x4C]);
+
+        let actual: u8 = cpu.memory.get_8_bit_value(0x2105);
+        assert_eq!(0x15, actual);
     }
 
     #[test]

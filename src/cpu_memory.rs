@@ -32,12 +32,10 @@ impl CPUMemory {
         return ((self.memory[0xFFFD] as u16) << 8) | (self.memory[0xFFFC] as u16);
     }
 
-    #[allow(dead_code)]
     pub fn get_8_bit_value(&self, address: u16) -> u8 {
         return self.memory[address as usize];
     }
 
-    #[allow(dead_code)]
     pub fn get_16_bit_value(&self, address: u16) -> u16 {
         // Little Endian. Low byte is stored first
         let high_byte: u16 = (self.memory[address as usize + 1] as u16) << 8;
