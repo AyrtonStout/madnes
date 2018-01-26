@@ -51,6 +51,7 @@ impl CPU {
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
             0x86 => { self.asm_stx_zero_page(instruction_data); }
+            0x88 => { self.asm_dey(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
             0x91 => { self.asm_sta_post_indexed(instruction_data); }
@@ -183,6 +184,14 @@ impl CPU {
     // 86 - Puts the accumulator into a specific 2-byte memory address
     fn asm_stx_zero_page(&mut self, instruction_data: &[u8]) {
         self.asm_stx_absolute(&[instruction_data[0], 0x00]);
+    }
+
+    // CA - Decrements X register by 1
+    fn asm_dey(&mut self) {
+        let y_register: u8 = self.y_register.wrapping_sub(1);
+        self.set_sign_bit(y_register);
+        self.set_zero_bit(y_register == 0);
+        self.y_register = y_register;
     }
 
     // 8D - Puts the accumulator into a specific 2-byte memory address
@@ -602,6 +611,26 @@ mod tests {
 
         cpu.asm_dex();
         assert_eq!(cpu.x_register, 0xFF);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_result_negative(), true);
+    }
+
+    #[test]
+    fn test_dey() {
+        let mut cpu: CPU = CPU::new();
+        cpu.y_register = 0x02;
+        cpu.asm_dey();
+        assert_eq!(cpu.y_register, 0x01);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_dey();
+        assert_eq!(cpu.y_register, 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+
+        cpu.asm_dey();
+        assert_eq!(cpu.y_register, 0xFF);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_result_negative(), true);
     }
