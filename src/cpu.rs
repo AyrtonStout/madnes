@@ -48,6 +48,7 @@ impl CPU {
         match opcode {
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
+            0x60 => { self.asm_rts(); }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
             0x86 => { self.asm_stx_zero_page(instruction_data); }
@@ -121,6 +122,12 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
     }
 
+    fn pull_stack(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
+        return self.memory.get_8_bit_value(stack_address);
+    }
+
     #[allow(dead_code)]
     pub fn are_interrupts_disabled(&self) -> bool {
         return (self.status_register & 0x04) == 0x04;
@@ -170,6 +177,13 @@ impl CPU {
         self.push_stack((return_address >> 8) as u8);
         self.push_stack((return_address & 0x00FF) as u8);
         self.program_counter = CPU::convert_to_address(instruction_data);
+    }
+
+    // 60 - Have program return to the instruction it last jumped from
+    fn asm_rts(&mut self) {
+        let lower_byte: u8 = self.pull_stack();
+        let upper_byte: u8 = self.pull_stack();
+        self.program_counter = CPU::convert_to_address(&[lower_byte, upper_byte]) + 1;
     }
 
     // 78 - Sets interrupts as being disabled
@@ -663,6 +677,17 @@ mod tests {
         assert_eq!(cpu.stack_pointer, 0xFD);
         assert_eq!(cpu.memory.get_8_bit_value(0x1FF), 0x80);
         assert_eq!(cpu.memory.get_8_bit_value(0x1FE), 0x53);
+    }
+
+    #[test]
+    fn test_rts() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x8054;
+        cpu.asm_jsr(&[0x35, 0x90]);
+        cpu.asm_rts();
+
+        assert_eq!(cpu.program_counter, 0x8054);
+        assert_eq!(cpu.stack_pointer, 0xFF);
     }
 
     #[test]
