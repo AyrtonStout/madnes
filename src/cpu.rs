@@ -62,6 +62,7 @@ impl CPU {
             0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
+            0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xCA => { self.asm_dex(); }
             0xD0 => { self.asm_bne(instruction_data); }
@@ -186,7 +187,7 @@ impl CPU {
         self.asm_stx_absolute(&[instruction_data[0], 0x00]);
     }
 
-    // CA - Decrements X register by 1
+    // CA - Decrements Y register by 1
     fn asm_dey(&mut self) {
         let y_register: u8 = self.y_register.wrapping_sub(1);
         self.set_sign_bit(y_register);
@@ -263,6 +264,12 @@ impl CPU {
         let memory_value = self.memory.get_8_bit_value(computed_address as u16);
         self.set_sign_bit(memory_value);
         self.accumulator = memory_value;
+    }
+
+    // E0 - Compare literal value with value stored in the y register
+    fn asm_cpy_immediate(&mut self, instruction_data: &[u8]) {
+        let y_register = self.y_register;
+        self.compare(y_register, instruction_data[0]);
     }
 
     // C9 - Compare literal value with value stored in accumulator
@@ -569,6 +576,17 @@ mod tests {
         let mut cpu: CPU = CPU::new();
         cpu.x_register = 0x30;
         cpu.asm_cpx_immediate(&[0x20]);
+
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_cpy_immediate() { // Most compare stuff is tested in the generic compare function
+        let mut cpu: CPU = CPU::new();
+        cpu.y_register = 0x30;
+        cpu.asm_cpy_immediate(&[0x20]);
 
         assert_eq!(cpu.is_carry_set(), true);
         assert_eq!(cpu.is_result_negative(), false);
