@@ -48,6 +48,7 @@ impl CPU {
         match opcode {
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
+            0x2C => { self.asm_bit_absolute(instruction_data); }
             0x60 => { self.asm_rts(); }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
@@ -60,9 +61,9 @@ impl CPU {
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xAD => { self.asm_lda_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
-            0xAD => { self.asm_lda_absolute(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xCA => { self.asm_dex(); }
@@ -103,6 +104,22 @@ impl CPU {
         }
     }
 
+    fn set_overflow(&mut self, is_set: bool) {
+        if is_set {
+            self.status_register |= 0x40;
+        } else {
+            self.status_register &= !0x40;
+        }
+    }
+
+    fn set_zero(&mut self, result: u8) {
+        if result == 0 {
+            self.status_register |= 0x02;
+        } else {
+            self.status_register &= !0x02;
+        }
+    }
+
     fn convert_to_address(address_data: &[u8]) -> u16 {
         if address_data.len() == 2 {
             return ((address_data[1] as u16) << 8) | (address_data[0] as u16);
@@ -139,7 +156,7 @@ impl CPU {
         return (self.status_register & 0x08) == 0x08;
     }
 
-    pub fn is_result_negative(&self) -> bool {
+    pub fn is_negative_set(&self) -> bool {
         return (self.status_register & 0x80) == 0x80;
     }
 
@@ -151,8 +168,17 @@ impl CPU {
         return (self.status_register & 0x02) == 0x02;
     }
 
+    pub fn is_overflow_set(&self) -> bool {
+        return (self.status_register & 0x40) == 0x40;
+    }
+
     fn branch(&mut self, offset: u8) {
         self.program_counter = (self.program_counter as i32 + (offset as i8) as i32) as u16;
+    }
+
+    fn read_absolute_value(&mut self, instruction_data: &[u8]) -> u8 {
+        let address = CPU::convert_to_address(instruction_data);
+        return self.memory.get_8_bit_value(address);
     }
 
     // C9 - Compare literal value with value stored in accumulator
@@ -166,7 +192,7 @@ impl CPU {
 
     // 10 - Branches on 'result plus' - the result being a positive number
     fn asm_bpl(&mut self, instruction_data: &[u8]) {
-        if self.is_result_negative() { return; }
+        if self.is_negative_set() { return; }
 
         self.branch(instruction_data[0]);
     }
@@ -177,6 +203,15 @@ impl CPU {
         self.push_stack((return_address >> 8) as u8);
         self.push_stack((return_address & 0x00FF) as u8);
         self.program_counter = CPU::convert_to_address(instruction_data);
+    }
+
+    // 2C - Sets various flags based off the current accumulator and memory address
+    fn asm_bit_absolute(&mut self, instruction_data: &[u8]) {
+        let memory_value: u8 = self.read_absolute_value(instruction_data);
+        let accumulator = self.accumulator;
+        self.set_sign_bit(memory_value);
+        self.set_overflow((memory_value & 0x40) == 0x40);
+        self.set_zero(memory_value & accumulator);
     }
 
     // 60 - Have program return to the instruction it last jumped from
@@ -280,7 +315,7 @@ impl CPU {
         self.accumulator = memory_value;
     }
 
-    // E0 - Compare literal value with value stored in the y register
+    // C0 - Compare literal value with value stored in the y register
     fn asm_cpy_immediate(&mut self, instruction_data: &[u8]) {
         let y_register = self.y_register;
         self.compare(y_register, instruction_data[0]);
@@ -430,11 +465,11 @@ mod tests {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
         assert_eq!(cpu.accumulator, 0x22);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_lda_immediate(&[0xA2]);
         assert_eq!(cpu.accumulator, 0xA2);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -443,12 +478,12 @@ mod tests {
         cpu.memory.set_8_bit_value(0x0271, 0xB4);
         cpu.asm_lda_absolute(&[0x71, 0x02]);
         assert_eq!(cpu.accumulator, 0xB4);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x0272, 0x04);
         cpu.asm_lda_absolute(&[0x72, 0x02]);
         assert_eq!(cpu.accumulator, 0x04);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
@@ -459,14 +494,14 @@ mod tests {
 
         cpu.asm_lda_absolute_x(&[0x33, 0x61]);
         assert_eq!(cpu.accumulator, 0x50);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.x_register = 0xFE;
         cpu.memory.set_8_bit_value(0x6131, 0xB2);
 
         cpu.asm_lda_absolute_x(&[0x33, 0x61]);
         assert_eq!(cpu.accumulator, 0xB2);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -533,11 +568,11 @@ mod tests {
         cpu.asm_ldy_immediate(&[0x52]);
 
         assert_eq!(0x52, cpu.y_register);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_ldy_immediate(&[0x98]);
         assert_eq!(0x98, cpu.y_register);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -546,11 +581,11 @@ mod tests {
         cpu.asm_ldx_immediate(&[0x52]);
 
         assert_eq!(0x52, cpu.x_register);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_ldx_immediate(&[0x98]);
         assert_eq!(0x98, cpu.x_register);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -560,17 +595,17 @@ mod tests {
         cpu.compare(cpu_data,0x20);
 
         assert_eq!(cpu.is_carry_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), false);
 
         cpu.compare(cpu_data, 0x30);
         assert_eq!(cpu.is_carry_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), true);
 
         cpu.compare(cpu_data, 0x94);
         assert_eq!(cpu.is_carry_set(), false);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
     }
 
@@ -581,7 +616,7 @@ mod tests {
         cpu.asm_cmp_immediate(&[0x20]);
 
         assert_eq!(cpu.is_carry_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), false);
     }
 
@@ -592,7 +627,7 @@ mod tests {
         cpu.asm_cpx_immediate(&[0x20]);
 
         assert_eq!(cpu.is_carry_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), false);
     }
 
@@ -603,7 +638,7 @@ mod tests {
         cpu.asm_cpy_immediate(&[0x20]);
 
         assert_eq!(cpu.is_carry_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), false);
     }
 
@@ -634,17 +669,17 @@ mod tests {
         cpu.asm_dex();
         assert_eq!(cpu.x_register, 0x01);
         assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_dex();
         assert_eq!(cpu.x_register, 0x00);
         assert_eq!(cpu.is_zero_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_dex();
         assert_eq!(cpu.x_register, 0xFF);
         assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -654,17 +689,17 @@ mod tests {
         cpu.asm_dey();
         assert_eq!(cpu.y_register, 0x01);
         assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_dey();
         assert_eq!(cpu.y_register, 0x00);
         assert_eq!(cpu.is_zero_set(), true);
-        assert_eq!(cpu.is_result_negative(), false);
+        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_dey();
         assert_eq!(cpu.y_register, 0xFF);
         assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_result_negative(), true);
+        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -688,6 +723,28 @@ mod tests {
 
         assert_eq!(cpu.program_counter, 0x8054);
         assert_eq!(cpu.stack_pointer, 0xFF);
+    }
+
+    #[test]
+    fn test_bit_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x2050, 0x6A);
+        cpu.accumulator = 0x20;
+
+        cpu.asm_bit_absolute(&[0x50, 0x20]);
+
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_overflow_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.memory.set_8_bit_value(0x2050, 0x9F);
+        cpu.accumulator = 0x60;
+
+        cpu.asm_bit_absolute(&[0x50, 0x20]);
+
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_overflow_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
     }
 
     #[test]
