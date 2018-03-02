@@ -271,6 +271,23 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "SBC", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // ED (Absolute)
     InstructionType { name: "INC", num_bytes: 3, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // EE (Absolute)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // EF
+
+    InstructionType { name: "BEQ", num_bytes: 2, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // F0
+    InstructionType { name: "SBC", num_bytes: 2, num_cycles: 5, addressing_mode: AddressingMode::Empty }, // F1 (Indirect, Y)
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // F2
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // F3
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // F4
+    InstructionType { name: "SBC", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // F5 (Zero Page, X)
+    InstructionType { name: "INC", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // F6 (Zero Page, X)
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // F7
+    InstructionType { name: "SED", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // F8
+    InstructionType { name: "SBC", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // F9 (Absolute, Y)
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // FA
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // FB
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // FC
+    InstructionType { name: "SBC", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // FD (Absolute, X)
+    InstructionType { name: "INC", num_bytes: 3, num_cycles: 7, addressing_mode: AddressingMode::Empty }, // FE (Absolute, X)
+    InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // FF
 ];
 
 #[derive(Clone, Copy)]
