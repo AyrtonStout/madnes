@@ -49,6 +49,7 @@ impl CPU {
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
             0x2C => { self.asm_bit_absolute(instruction_data); }
+            0x4C => { self.asm_jmp_absolute(instruction_data); }
             0x60 => { self.asm_rts(); }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
@@ -213,6 +214,12 @@ impl CPU {
         self.set_sign_bit(memory_value);
         self.set_overflow((memory_value & 0x40) == 0x40);
         self.set_zero(memory_value & accumulator);
+    }
+
+    // 4C - Start program execution at a value stored at a location in memory
+    fn asm_jmp_absolute(&mut self, instruction_data: &[u8]) {
+        let address = CPU::convert_to_address(instruction_data);
+        self.program_counter = self.memory.get_8_bit_value(address) as u16;
     }
 
     // 60 - Have program return to the instruction it last jumped from
@@ -721,6 +728,15 @@ mod tests {
         assert_eq!(cpu.stack_pointer, 0xFD);
         assert_eq!(cpu.memory.get_8_bit_value(0x1FF), 0x80);
         assert_eq!(cpu.memory.get_8_bit_value(0x1FE), 0x53);
+    }
+
+    #[test]
+    fn test_jmp_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x2050, 0x50);
+        cpu.asm_jmp_absolute(&[0x50, 0x20]);
+
+        assert_eq!(cpu.program_counter, 0x50);
     }
 
     #[test]
