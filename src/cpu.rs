@@ -69,11 +69,13 @@ impl CPU {
             0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
+            0xC8 => { self.asm_iny(); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xCA => { self.asm_dex(); }
             0xD0 => { self.asm_bne(instruction_data); }
             0xD8 => { self.asm_cld(); }
             0xE0 => { self.asm_cpx_immediate(instruction_data); }
+            0xE8 => { self.asm_inx(); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
             }
@@ -199,7 +201,7 @@ impl CPU {
         return self.memory.get_8_bit_value(address);
     }
 
-    // C9 - Compare literal value with value stored in accumulator
+    // Compare literal value with value stored in accumulator
     fn compare(&mut self, cpu_data: u8, src: u8) {
         self.set_carry_bit(cpu_data >= src);
         self.set_zero_bit(cpu_data == src);
@@ -260,20 +262,20 @@ impl CPU {
         self.asm_stx_absolute(&[instruction_data[0], 0x00]);
     }
 
+    // 88 - Decrements Y register by 1
+    fn asm_dey(&mut self) {
+        let y_register: u8 = self.y_register.wrapping_sub(1);
+        self.set_sign_bit(y_register);
+        self.set_zero_bit(y_register == 0);
+        self.y_register = y_register;
+    }
+
     // 8A - Puts the accumulator into a specific 2-byte memory address
     fn asm_txa(&mut self) {
         let x_register = self.x_register;
         self.set_sign_bit(x_register);
         self.set_zero(x_register);
         self.accumulator = x_register;
-    }
-
-    // CA - Decrements Y register by 1
-    fn asm_dey(&mut self) {
-        let y_register: u8 = self.y_register.wrapping_sub(1);
-        self.set_sign_bit(y_register);
-        self.set_zero_bit(y_register == 0);
-        self.y_register = y_register;
     }
 
     // 8D - Puts the accumulator into a specific 2-byte memory address
@@ -362,6 +364,14 @@ impl CPU {
         self.compare(y_register, instruction_data[0]);
     }
 
+    // C8 - Increments Y register by 1
+    fn asm_iny(&mut self) {
+        let y_register: u8 = self.y_register.wrapping_add(1);
+        self.set_sign_bit(y_register);
+        self.set_zero_bit(y_register == 0);
+        self.y_register = y_register;
+    }
+
     // C9 - Compare literal value with value stored in accumulator
     fn asm_cmp_immediate(&mut self, instruction_data: &[u8]) {
         let accumulator = self.accumulator;
@@ -392,6 +402,14 @@ impl CPU {
     fn asm_cpx_immediate(&mut self, instruction_data: &[u8]) {
         let x_register = self.x_register;
         self.compare(x_register, instruction_data[0]);
+    }
+
+    // E8 - Increments X register by 1
+    fn asm_inx(&mut self) {
+        let x_register: u8 = self.x_register.wrapping_add(1);
+        self.set_sign_bit(x_register);
+        self.set_zero_bit(x_register == 0);
+        self.x_register = x_register;
     }
 
 }
@@ -761,6 +779,50 @@ mod tests {
 
         cpu.asm_dey();
         assert_eq!(cpu.y_register, 0xFF);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+    }
+
+    #[test]
+    fn test_iny() {
+        let mut cpu: CPU = CPU::new();
+        cpu.y_register = 0x02;
+        cpu.asm_iny();
+        assert_eq!(cpu.y_register, 0x03);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.y_register = 0xFF;
+        cpu.asm_iny();
+        assert_eq!(cpu.y_register, 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.y_register = 0x7F;
+        cpu.asm_iny();
+        assert_eq!(cpu.y_register, 0x80);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+    }
+
+    #[test]
+    fn test_inx() {
+        let mut cpu: CPU = CPU::new();
+        cpu.x_register = 0x02;
+        cpu.asm_inx();
+        assert_eq!(cpu.x_register, 0x03);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.x_register = 0xFF;
+        cpu.asm_inx();
+        assert_eq!(cpu.x_register, 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.x_register = 0x7F;
+        cpu.asm_inx();
+        assert_eq!(cpu.x_register, 0x80);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), true);
     }
