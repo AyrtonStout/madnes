@@ -58,7 +58,9 @@ impl CPU {
             0x8A => { self.asm_txa(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
+            0x90 => { self.asm_sta_absolute_x(instruction_data); }
             0x91 => { self.asm_sta_post_indexed(instruction_data); }
+            0x99 => { self.asm_sta_absolute_y(instruction_data); }
             0x9A => { self.asm_txs(); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
@@ -133,6 +135,20 @@ impl CPU {
     fn get_post_indexed_indirect_address(&self, zero_page_address: u8) -> u16 {
         let address: u16 = self.memory.get_16_bit_value(zero_page_address as u16);
         return address + self.y_register as u16;
+    }
+
+    fn compute_absolute_y_address(&mut self, instruction_data: &[u8]) -> u16 {
+        let address = CPU::convert_to_address(instruction_data);
+        // Temporarily convert to signed numbers because y_register might be negative
+        let y_register = (self.y_register as i8) as i16; // Sign extend the number as a (potential) negative number
+        return (address as i16 + y_register) as u16;
+    }
+
+    fn compute_absolute_x_address(&mut self, instruction_data: &[u8]) -> u16 {
+        let address = CPU::convert_to_address(instruction_data);
+        // Temporarily convert to signed numbers because x_register might be negative
+        let x_register = (self.x_register as i8) as i16; // Sign extend the number as a (potential) negative number
+        return (address as i16 + x_register) as u16;
     }
 
     fn push_stack(&mut self, value_to_write: u8) {
@@ -272,9 +288,21 @@ impl CPU {
         self.memory.set_8_bit_value(address, self.x_register);
     }
 
+    // 90 - Puts the accumulator into a the absolute_x memory address
+    fn asm_sta_absolute_x(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.compute_absolute_x_address(instruction_data);
+        self.memory.set_8_bit_value(address, self.accumulator);
+    }
+
     // 91 - Puts the accumulator into a post-indexed 2-byte memory address
     fn asm_sta_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
+        self.memory.set_8_bit_value(address, self.accumulator);
+    }
+
+    // 99 - Puts the accumulator into a the absolute_y memory address
+    fn asm_sta_absolute_y(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.compute_absolute_y_address(instruction_data);
         self.memory.set_8_bit_value(address, self.accumulator);
     }
 
@@ -321,10 +349,7 @@ impl CPU {
     // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
     //      Loads the value stored at this memory location into the accumulator
     fn asm_lda_absolute_x(&mut self, instruction_data: &[u8]) {
-        let address = CPU::convert_to_address(instruction_data);
-        // Temporarily convert to signed numbers because x_register might be negative
-        let x_register = (self.x_register as i8) as i16; // Sign extend the number as a (potential) negative number
-        let computed_address = address as i16 + x_register;
+        let computed_address = self.compute_absolute_x_address(instruction_data);
 
         let memory_value = self.memory.get_8_bit_value(computed_address as u16);
         self.set_sign_bit(memory_value);
@@ -529,6 +554,28 @@ mod tests {
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
         assert_eq!(0x42, actual);
+    }
+
+    #[test]
+    fn test_sta_absolute_x() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x42;
+        cpu.x_register = 0x32;
+
+        cpu.asm_sta_absolute_x(&[0x34, 0x61]);
+
+        assert_eq!(cpu.memory.get_8_bit_value(0x6166), 0x42);
+    }
+
+    #[test]
+    fn test_sta_absolute_y() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x42;
+        cpu.y_register = 0x32;
+
+        cpu.asm_sta_absolute_y(&[0x34, 0x61]);
+
+        assert_eq!(cpu.memory.get_8_bit_value(0x6166), 0x42);
     }
 
     #[test]
