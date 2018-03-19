@@ -49,6 +49,7 @@ impl CPU {
             0x09 => { self.asm_ora_immediate(instruction_data) }
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
+            0x29 => { self.asm_and_immediate(instruction_data) }
             0x2C => { self.asm_bit_absolute(instruction_data); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
             0x60 => { self.asm_rts(); }
@@ -211,7 +212,15 @@ impl CPU {
         self.set_sign_bit(difference);
     }
 
-    fn ora(&mut self, result: u8) {
+    fn or_with_accumulator(&mut self, source: u8) {
+        let result = source | self.accumulator;
+        self.set_sign_bit(result);
+        self.set_zero(result);
+        self.accumulator = result;
+    }
+
+    fn and_with_accumulator(&mut self, source: u8) {
+        let result = source & self.accumulator;
         self.set_sign_bit(result);
         self.set_zero(result);
         self.accumulator = result;
@@ -219,8 +228,7 @@ impl CPU {
 
     // 09 - 'OR's a literal value with the accumulator. Stores value in the accumulator
     fn asm_ora_immediate(&mut self, instruction_data: &[u8]) {
-        let result = self.accumulator | instruction_data[0];
-        self.ora(result);
+        self.or_with_accumulator(instruction_data[0]);
     }
 
     // 10 - Branches on 'result plus' - the result being a positive number
@@ -236,6 +244,11 @@ impl CPU {
         self.push_stack((return_address >> 8) as u8);
         self.push_stack((return_address & 0x00FF) as u8);
         self.program_counter = CPU::convert_to_address(instruction_data);
+    }
+
+    // 29 - 'OR's a literal value with the accumulator. Stores value in the accumulator
+    fn asm_and_immediate(&mut self, instruction_data: &[u8]) {
+        self.and_with_accumulator(instruction_data[0]);
     }
 
     // 2C - Sets various flags based off the current accumulator and memory address
@@ -931,6 +944,29 @@ mod tests {
         cpu.accumulator = 0x12;
         cpu.asm_ora_immediate(&[0x80]);
         assert_eq!(cpu.accumulator, 0x92);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_and_immediate() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x23;
+        cpu.asm_and_immediate(&[0x25]);
+        assert_eq!(cpu.accumulator, 0x21);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x22;
+        cpu.asm_and_immediate(&[0x11]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x89;
+        cpu.asm_and_immediate(&[0x81]);
+        assert_eq!(cpu.accumulator, 0x81);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
     }
