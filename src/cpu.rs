@@ -46,6 +46,7 @@ impl CPU {
 
     fn handle_instruction(&mut self, opcode: u8, instruction_data: &[u8]) {
         match opcode {
+            0x09 => { self.asm_ora_immediate(instruction_data) }
             0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
             0x2C => { self.asm_bit_absolute(instruction_data); }
@@ -208,6 +209,18 @@ impl CPU {
 
         let difference = cpu_data.wrapping_sub(src);
         self.set_sign_bit(difference);
+    }
+
+    fn ora(&mut self, result: u8) {
+        self.set_sign_bit(result);
+        self.set_zero(result);
+        self.accumulator = result;
+    }
+
+    // 09 - 'OR's a literal value with the accumulator. Stores value in the accumulator
+    fn asm_ora_immediate(&mut self, instruction_data: &[u8]) {
+        let result = self.accumulator | instruction_data[0];
+        self.ora(result);
     }
 
     // 10 - Branches on 'result plus' - the result being a positive number
@@ -897,6 +910,29 @@ mod tests {
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_overflow_set(), false);
         assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_ora_immediate() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x22;
+        cpu.asm_ora_immediate(&[0x11]);
+        assert_eq!(cpu.accumulator, 0x33);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x00;
+        cpu.asm_ora_immediate(&[0x00]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x12;
+        cpu.asm_ora_immediate(&[0x80]);
+        assert_eq!(cpu.accumulator, 0x92);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
     }
 
     #[test]
