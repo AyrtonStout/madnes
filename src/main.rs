@@ -28,9 +28,3 @@ fn main() {
     }
 }
 
-/*
-fn main() {
-    rom::print_rom(40);
-}
-*/
-

@@ -190,6 +190,7 @@ impl CPU {
         return (self.status_register & 0x02) == 0x02;
     }
 
+    #[allow(dead_code)]
     pub fn is_overflow_set(&self) -> bool {
         return (self.status_register & 0x40) == 0x40;
     }
@@ -343,18 +344,21 @@ impl CPU {
     // A0 - Loads a specific value into the Y register
     fn asm_ldy_immediate(&mut self, instruction_data: &[u8]) {
         self.set_sign_bit(instruction_data[0]);
+        self.set_zero(instruction_data[0]);
         self.y_register = instruction_data[0];
     }
 
     // A2 - Loads a specific value into the X register
     fn asm_ldx_immediate(&mut self, instruction_data: &[u8]) {
         self.set_sign_bit(instruction_data[0]);
+        self.set_zero(instruction_data[0]);
         self.x_register = instruction_data[0];
     }
 
     // A9 - Loads a specific value into the accumulator
     fn asm_lda_immediate(&mut self, instruction_data: &[u8]) {
         self.set_sign_bit(instruction_data[0]);
+        self.set_zero(instruction_data[0]);
         self.accumulator = instruction_data[0];
     }
 
@@ -364,6 +368,7 @@ impl CPU {
         let memory_value = self.memory.get_8_bit_value(address);
 
         self.set_sign_bit(memory_value);
+        self.set_zero(instruction_data[0]);
         self.accumulator = memory_value;
     }
 
@@ -381,6 +386,7 @@ impl CPU {
 
         let memory_value = self.memory.get_8_bit_value(computed_address as u16);
         self.set_sign_bit(memory_value);
+        self.set_zero(instruction_data[0]);
         self.accumulator = memory_value;
     }
 
