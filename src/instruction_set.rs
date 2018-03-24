@@ -231,7 +231,7 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // C7
     InstructionType { name: "INY", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // C8
     InstructionType { name: "CMP", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // C9 (Immediate)
-    InstructionType { name: "DEC", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // CA
+    InstructionType { name: "DEX", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // CA
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // CB
     InstructionType { name: "CPY", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // CC (Absolute)
     InstructionType { name: "CMP", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // CD (Absolute)
