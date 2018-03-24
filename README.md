@@ -1,5 +1,5 @@
 # madnes
-NES emulator written in Rust
+A (not yet working) NES emulator written in Rust
 
 ## Installation
 
