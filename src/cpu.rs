@@ -55,8 +55,8 @@ impl CPU {
     }
 
     fn handle_instruction(&mut self, opcode: u8, instruction_data: &[u8]) {
-        let instruction_name = get_instruction(opcode).name;
         /*
+        let instruction_name = get_instruction(opcode).name;
         if instruction_data.is_empty() {
             print!("DEBUG - Opcode: {} ({:X})", instruction_name, opcode);
         } else if instruction_data.len() == 1 {
@@ -99,6 +99,7 @@ impl CPU {
             0xD8 => { self.asm_cld(); }
             0xE0 => { self.asm_cpx_immediate(instruction_data); }
             0xE8 => { self.asm_inx(); }
+            0xEE => { self.asm_inc_absolute(instruction_data); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
             }
@@ -462,6 +463,16 @@ impl CPU {
         self.set_sign_bit(x_register);
         self.set_zero_bit(x_register == 0);
         self.x_register = x_register;
+    }
+
+    // EE - Increments the value at a memory location by 1
+    fn asm_inc_absolute(&mut self, instruction_data: &[u8]) {
+        let memory_location: u16 = CPU::convert_to_address(instruction_data);
+        let memory_value: u8 = self.memory.get_8_bit_value(memory_location);
+        let new_memory_value = memory_value.wrapping_add(1);
+        self.memory.set_8_bit_value(memory_location, new_memory_value);
+        self.set_sign_bit(new_memory_value);
+        self.set_zero(new_memory_value);
     }
 
 }
@@ -880,6 +891,28 @@ mod tests {
     }
 
     #[test]
+    fn test_inc() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x1020, 0x50);
+        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x51);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.memory.set_8_bit_value(0x1020, 0x7F);
+        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x80);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x1020, 0xFF);
+        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+    }
+
+    #[test]
     fn test_jsr() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x8054;
@@ -894,10 +927,9 @@ mod tests {
     #[test]
     fn test_jmp_absolute() {
         let mut cpu: CPU = CPU::new();
-        cpu.memory.set_8_bit_value(0x2050, 0x50);
         cpu.asm_jmp_absolute(&[0x50, 0x20]);
 
-        assert_eq!(cpu.program_counter, 0x50);
+        assert_eq!(cpu.program_counter, 0x2050);
     }
 
     #[test]

@@ -22,7 +22,7 @@ impl CPUMemory {
     pub fn read_ppu_for_nmi(&mut self) -> bool {
         unsafe {
             let first_address: *mut u8 = self.memory.first_mut().unwrap();
-            let mut ppu_status_register: *mut u8 = first_address.offset(0x2002);
+            let ppu_status_register: *mut u8 = first_address.offset(0x2002);
             let nmi_enabled = (*ppu_status_register & 0x80) == 0x80;
             *ppu_status_register &= !0x80; // Clear the register of the NMI now that it has been read
 
