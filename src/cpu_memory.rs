@@ -19,6 +19,25 @@ impl CPUMemory {
         }
     }
 
+    pub fn read_ppu_for_nmi(&mut self) -> bool {
+        unsafe {
+            let first_address: *mut u8 = self.memory.first_mut().unwrap();
+            let mut ppu_status_register: *mut u8 = first_address.offset(0x2002);
+            let nmi_enabled = (*ppu_status_register & 0x80) == 0x80;
+            *ppu_status_register &= !0x80; // Clear the register of the NMI now that it has been read
+
+            return nmi_enabled;
+        }
+    }
+
+    pub fn are_nmis_enabled(&mut self) -> bool {
+        unsafe {
+            let first_address: *mut u8 = self.memory.first_mut().unwrap();
+            let ppu_control_register_1: *mut u8 = first_address.offset(0x2000);
+            return (*ppu_control_register_1 & 0x80) == 0x80;
+        }
+    }
+
     pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
         // TODO this will need to be more sophisticated with a ROM that requires bank switching. Should handle this with pointers to different banks
         // TODO can try to use https://stackoverflow.com/a/28224758 here instead of looping

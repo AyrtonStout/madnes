@@ -32,6 +32,8 @@ impl CPU {
     }
 
     pub fn tick(&mut self) {
+        self.handle_nmi();
+
         let memory_start = self.program_counter;
         let opcode: u8 = self.memory.get_8_bit_value(memory_start);
         let num_bytes: u8 = get_instruction(opcode).num_bytes;
@@ -44,7 +46,26 @@ impl CPU {
         self.handle_instruction(opcode, instruction_data.as_slice());
     }
 
+    fn handle_nmi(&mut self) {
+        if self.memory.are_nmis_enabled() {
+            if self.memory.read_ppu_for_nmi() {
+//                println!("NMI detected for CPU!");
+            }
+        }
+    }
+
     fn handle_instruction(&mut self, opcode: u8, instruction_data: &[u8]) {
+        let instruction_name = get_instruction(opcode).name;
+        /*
+        if instruction_data.is_empty() {
+            print!("DEBUG - Opcode: {} ({:X})", instruction_name, opcode);
+        } else if instruction_data.len() == 1 {
+            print!("DEBUG - Opcode: {} ({:X})  Data: ({:X})", instruction_name, opcode, instruction_data[0]);
+        } else {
+            print!("DEBUG - Opcode: {} ({:X})  Data: ({:X} {:X})", instruction_name, opcode, instruction_data[0], instruction_data[1]);
+        }
+        println!("  Program Counter: {} ({:X})", self.program_counter, self.program_counter);
+        */
         match opcode {
             0x09 => { self.asm_ora_immediate(instruction_data) }
             0x10 => { self.asm_bpl(instruction_data) }
@@ -263,8 +284,7 @@ impl CPU {
 
     // 4C - Start program execution at a value stored at a location in memory
     fn asm_jmp_absolute(&mut self, instruction_data: &[u8]) {
-        let address = CPU::convert_to_address(instruction_data);
-        self.program_counter = self.memory.get_8_bit_value(address) as u16;
+        self.program_counter = CPU::convert_to_address(instruction_data);
     }
 
     // 60 - Have program return to the instruction it last jumped from
