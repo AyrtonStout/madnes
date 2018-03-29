@@ -46,10 +46,17 @@ impl CPU {
         self.handle_instruction(opcode, instruction_data.as_slice());
     }
 
+    // NOTE: There is some tomfoolery possible here. A thing called 'Interrupt Hijacking'. Might have to implement
     fn handle_nmi(&mut self) {
         if self.memory.are_nmis_enabled() {
             if self.memory.read_ppu_for_nmi() {
-//                println!("NMI detected for CPU!");
+                println!("NMI detected for CPU!");
+                let program_counter = self.program_counter;
+                let status_register = self.status_register;
+                self.push_stack_16(program_counter);
+                self.push_stack(status_register);
+                self.asm_sei(); // Disable interrupts
+                self.program_counter = self.memory.get_16_bit_value(0xFFFA);
             }
         }
     }
@@ -69,10 +76,13 @@ impl CPU {
         match opcode {
             0x09 => { self.asm_ora_immediate(instruction_data) }
             0x10 => { self.asm_bpl(instruction_data) }
+            0x18 => { self.asm_clc(); }
             0x20 => { self.asm_jsr(instruction_data) }
             0x29 => { self.asm_and_immediate(instruction_data) }
             0x2C => { self.asm_bit_absolute(instruction_data); }
+            0x38 => { self.asm_sec(); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
+            0x4D => { self.asm_rti(); }
             0x60 => { self.asm_rts(); }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
@@ -183,10 +193,21 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
     }
 
+    fn push_stack_16(&mut self, value_to_write: u16) {
+        self.push_stack(value_to_write as u8);
+        self.push_stack((value_to_write >> 8) as u8);
+    }
+
     fn pull_stack(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
         return self.memory.get_8_bit_value(stack_address);
+    }
+
+    fn pull_stack_16(&mut self) -> u16 {
+        let high_byte: u16 = (self.pull_stack() as u16) << 8;
+        let low_bye: u16 = self.pull_stack() as u16;
+        return high_byte | low_bye;
     }
 
     #[allow(dead_code)]
@@ -261,6 +282,11 @@ impl CPU {
         self.branch(instruction_data[0]);
     }
 
+    // 18 - Clears the carry flag so that it is not set
+    fn asm_clc(&mut self) {
+        self.set_carry_bit(false);
+    }
+
     // 20 - Have program start executing from a new address. Store current address on the stack
     fn asm_jsr(&mut self, instruction_data: &[u8]) {
         let return_address = self.program_counter - 1;
@@ -283,9 +309,20 @@ impl CPU {
         self.set_zero(memory_value & accumulator);
     }
 
+    // 38 - Sets carry flag as being set
+    fn asm_sec(&mut self) {
+        self.set_carry_bit(true);
+    }
+
     // 4C - Start program execution at a value stored at a location in memory
     fn asm_jmp_absolute(&mut self, instruction_data: &[u8]) {
         self.program_counter = CPU::convert_to_address(instruction_data);
+    }
+
+    // 4D - Return the program from an interrupt routine
+    fn asm_rti(&mut self) {
+        self.status_register = self.pull_stack();
+        self.program_counter = self.pull_stack_16();
     }
 
     // 60 - Have program return to the instruction it last jumped from
@@ -1064,5 +1101,52 @@ mod tests {
         assert_eq!(cpu.is_in_decimal_mode(), false);
         assert_eq!(cpu.accumulator, 0x10);
         assert_eq!(cpu.program_counter, 0x8004);
+    }
+
+    #[test]
+    fn nmi_routine() {
+        let mut prg_rom: Vec<u8> = vec![0 as u8; 0x8000];
+
+        // Normal instruction data
+        prg_rom[0x0000] = 0xE8; // INX
+        prg_rom[0x0001] = 0x38; // SEC (Set carry flag. This should persist after NMI)
+        prg_rom[0x0002] = 0xE8; // INX
+
+         // NMI Routine
+        prg_rom[0x1000] = 0xC8; // INY
+        prg_rom[0x1001] = 0x18; // CLC (Clear carry flag. This should get undone after RTI)
+        prg_rom[0x1002] = 0x4D; // RTI
+
+        prg_rom[0x7FFC] = 0x00; // Reset vector. Initializes program counter to 8000
+        prg_rom[0x7FFD] = 0x80;
+
+        prg_rom[0x7FFA] = 0x00; // Interrupt vector. Initializes program counter to 9000
+        prg_rom[0x7FFB] = 0x90;
+
+        let mut cpu: CPU = CPU::new();
+        cpu.init_prg_rom(prg_rom);
+        cpu.tick(); // Executes INX
+        cpu.tick(); // Executes SEC
+
+        // Enable NMIs and set one as having happened
+        let mut ppu_ctrl_register = cpu.memory.get_8_bit_value(0x2000);
+        ppu_ctrl_register |= 0x80;
+        cpu.memory.set_8_bit_value(0x2000, ppu_ctrl_register);
+
+        let mut ppu_status_register = cpu.memory.get_8_bit_value(0x2002);
+        ppu_status_register |= 0x80;
+        cpu.memory.set_8_bit_value(0x2002, ppu_status_register);
+
+        // This should now be in the NMI routine
+        cpu.tick(); // Executes INY
+        cpu.tick(); // Executes CLC
+        cpu.tick(); // Executes RTI
+
+        // We should now be back in the normal flow
+        cpu.tick(); // Executes INX
+
+        assert_eq!(cpu.x_register, 0x02);
+        assert_eq!(cpu.y_register, 0x01);
+        assert_eq!(cpu.is_carry_set(), true);
     }
 }

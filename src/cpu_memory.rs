@@ -23,10 +23,10 @@ impl CPUMemory {
         unsafe {
             let first_address: *mut u8 = self.memory.first_mut().unwrap();
             let ppu_status_register: *mut u8 = first_address.offset(0x2002);
-            let nmi_enabled = (*ppu_status_register & 0x80) == 0x80;
+            let nmi_triggered = (*ppu_status_register & 0x80) == 0x80;
             *ppu_status_register &= !0x80; // Clear the register of the NMI now that it has been read
 
-            return nmi_enabled;
+            return nmi_triggered;
         }
     }
 
