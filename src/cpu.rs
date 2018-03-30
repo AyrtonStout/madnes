@@ -100,6 +100,7 @@ impl CPU {
             0xA9 => { self.asm_lda_immediate(instruction_data); }
             0xAC => { self.asm_ldy_absolute(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
+            0xAE => { self.asm_ldx_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
@@ -436,6 +437,15 @@ impl CPU {
         self.set_sign_bit(memory_value);
         self.set_zero(memory_value);
         self.accumulator = memory_value;
+    }
+
+    // AD - Loads a specific value into the accumulator
+    fn asm_ldx_absolute(&mut self, instruction_data: &[u8]) {
+        let memory_value = self.read_absolute_value(instruction_data);
+
+        self.set_sign_bit(memory_value);
+        self.set_zero(memory_value);
+        self.x_register = memory_value;
     }
 
     // B0 - Branch when carry is set
@@ -789,6 +799,20 @@ mod tests {
         cpu.asm_ldx_immediate(&[0x98]);
         assert_eq!(0x98, cpu.x_register);
         assert_eq!(cpu.is_negative_set(), true);
+    }
+
+    #[test]
+    fn test_ldx_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x0271, 0xB4);
+        cpu.asm_ldx_absolute(&[0x71, 0x02]);
+        assert_eq!(cpu.x_register, 0xB4);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x0272, 0x04);
+        cpu.asm_ldx_absolute(&[0x72, 0x02]);
+        assert_eq!(cpu.x_register, 0x04);
+        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
