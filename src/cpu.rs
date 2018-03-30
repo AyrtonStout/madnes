@@ -104,6 +104,7 @@ impl CPU {
             0xB0 => { self.asm_bcs(instruction_data); }
             0xB1 => { self.asm_lda_post_indexed(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
+            0xBE => { self.asm_ldx_post_indexed(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC8 => { self.asm_iny(); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
@@ -456,10 +457,14 @@ impl CPU {
         self.branch(instruction_data[0]);
     }
 
-    // B1 - Puts the accumulator into a post-indexed 2-byte memory address
+    // B1 - Puts the a post-indexed 2-byte memory address into the accumulator
     fn asm_lda_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
-        self.accumulator = self.memory.get_8_bit_value(address);
+        let accumulator = self.memory.get_8_bit_value(address);
+
+        self.set_sign_bit(accumulator);
+        self.set_zero(accumulator);
+        self.accumulator = accumulator;
     }
 
     // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
@@ -471,6 +476,16 @@ impl CPU {
         self.set_sign_bit(memory_value);
         self.set_zero(instruction_data[0]);
         self.accumulator = memory_value;
+    }
+
+    // BE - Puts the post-indexed 2-byte memory address into the x register
+    fn asm_ldx_post_indexed(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
+        let x_register = self.memory.get_8_bit_value(address);
+
+        self.set_sign_bit(x_register);
+        self.set_zero(x_register);
+        self.x_register = x_register;
     }
 
     // C0 - Compare literal value with value stored in the y register
@@ -823,6 +838,30 @@ mod tests {
     }
 
     #[test]
+    fn test_ldx_post_indexed() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.y_register = 0x05;
+        cpu.memory.set_16_bit_value(0x0032, 0x500);
+        cpu.memory.set_8_bit_value(0x0505, 0x42);
+
+        cpu.asm_ldx_post_indexed(&[0x32]);
+        assert_eq!(cpu.x_register, 0x42);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.memory.set_8_bit_value(0x0505, 0x82);
+        cpu.asm_lda_post_indexed(&[0x32]);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x0505, 0x00);
+        cpu.asm_lda_post_indexed(&[0x32]);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+    }
+
+    #[test]
     fn test_compare() {
         let mut cpu: CPU = CPU::new();
         let cpu_data = 0x30;
@@ -1106,6 +1145,18 @@ mod tests {
 
         cpu.asm_lda_post_indexed(&[0x32]);
         assert_eq!(cpu.accumulator, 0x42);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.memory.set_8_bit_value(0x0505, 0x82);
+        cpu.asm_lda_post_indexed(&[0x32]);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x0505, 0x00);
+        cpu.asm_lda_post_indexed(&[0x32]);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
