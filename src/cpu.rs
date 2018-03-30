@@ -91,10 +91,10 @@ impl CPU {
             0x8A => { self.asm_txa(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
-            0x90 => { self.asm_sta_absolute_x(instruction_data); }
             0x91 => { self.asm_sta_post_indexed(instruction_data); }
             0x99 => { self.asm_sta_absolute_y(instruction_data); }
             0x9A => { self.asm_txs(); }
+            0x9D => { self.asm_sta_absolute_x(instruction_data); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
@@ -379,12 +379,6 @@ impl CPU {
         self.memory.set_8_bit_value(address, self.x_register);
     }
 
-    // 90 - Puts the accumulator into a the absolute_x memory address
-    fn asm_sta_absolute_x(&mut self, instruction_data: &[u8]) {
-        let address: u16 = self.compute_absolute_x_address(instruction_data);
-        self.memory.set_8_bit_value(address, self.accumulator);
-    }
-
     // 91 - Puts the accumulator into a post-indexed 2-byte memory address
     fn asm_sta_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
@@ -401,6 +395,12 @@ impl CPU {
     fn asm_txs(&mut self) {
         let x_register = self.x_register;
         self.push_stack(x_register);
+    }
+
+    // 9D - Puts the accumulator into a the absolute_x memory address
+    fn asm_sta_absolute_x(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.compute_absolute_x_address(instruction_data);
+        self.memory.set_8_bit_value(address, self.accumulator);
     }
 
     // A0 - Loads a specific value into the Y register
