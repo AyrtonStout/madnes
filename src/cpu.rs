@@ -98,6 +98,7 @@ impl CPU {
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xAC => { self.asm_ldy_absolute(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
@@ -420,13 +421,20 @@ impl CPU {
         self.accumulator = instruction_data[0];
     }
 
+    // AC - Loads a specific value into the accumulator
+    fn asm_ldy_absolute(&mut self, instruction_data: &[u8]) {
+        let memory_value = self.read_absolute_value(instruction_data);
+        self.set_sign_bit(memory_value);
+        self.set_zero(memory_value);
+        self.y_register = memory_value;
+    }
+
     // AD - Loads a specific value into the accumulator
     fn asm_lda_absolute(&mut self, instruction_data: &[u8]) {
-        let address = CPU::convert_to_address(instruction_data);
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_absolute_value(instruction_data);
 
         self.set_sign_bit(memory_value);
-        self.set_zero(instruction_data[0]);
+        self.set_zero(memory_value);
         self.accumulator = memory_value;
     }
 
@@ -754,6 +762,20 @@ mod tests {
         cpu.asm_ldy_immediate(&[0x98]);
         assert_eq!(0x98, cpu.y_register);
         assert_eq!(cpu.is_negative_set(), true);
+    }
+
+    #[test]
+    fn test_ldy_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x0271, 0xB4);
+        cpu.asm_ldy_absolute(&[0x71, 0x02]);
+        assert_eq!(cpu.y_register, 0xB4);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x0272, 0x04);
+        cpu.asm_ldy_absolute(&[0x72, 0x02]);
+        assert_eq!(cpu.y_register, 0x04);
+        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
