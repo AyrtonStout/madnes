@@ -102,6 +102,7 @@ impl CPU {
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xAE => { self.asm_ldx_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
+            0xB1 => { self.asm_lda_post_indexed(instruction_data); }
             0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC8 => { self.asm_iny(); }
@@ -439,7 +440,7 @@ impl CPU {
         self.accumulator = memory_value;
     }
 
-    // AD - Loads a specific value into the accumulator
+    // AE - Loads a specific value into the accumulator
     fn asm_ldx_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value = self.read_absolute_value(instruction_data);
 
@@ -453,6 +454,12 @@ impl CPU {
         if !self.is_carry_set() { return; }
 
         self.branch(instruction_data[0]);
+    }
+
+    // B1 - Puts the accumulator into a post-indexed 2-byte memory address
+    fn asm_lda_post_indexed(&mut self, instruction_data: &[u8]) {
+        let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
+        self.accumulator = self.memory.get_8_bit_value(address);
     }
 
     // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
@@ -1087,6 +1094,18 @@ mod tests {
         assert_eq!(cpu.accumulator, 0x92);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_lda_post_indexed() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.y_register = 0x05;
+        cpu.memory.set_16_bit_value(0x0032, 0x500);
+        cpu.memory.set_8_bit_value(0x0505, 0x42);
+
+        cpu.asm_lda_post_indexed(&[0x32]);
+        assert_eq!(cpu.accumulator, 0x42);
     }
 
     #[test]
