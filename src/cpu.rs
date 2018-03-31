@@ -82,6 +82,7 @@ impl CPU {
             0x2C => { self.asm_bit_absolute(instruction_data); }
             0x38 => { self.asm_sec(); }
             0x48 => { self.asm_pha(); }
+            0x4A => { self.asm_lsr_accumulator(); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
             0x4D => { self.asm_rti(); }
             0x60 => { self.asm_rts(); }
@@ -323,6 +324,12 @@ impl CPU {
     fn asm_pha(&mut self) {
         let accumulator = self.accumulator;
         self.push_stack(accumulator);
+    }
+
+    // 4A - Bitshift accumulator to the right by 1
+    fn asm_lsr_accumulator(&mut self) {
+        let accumulator = self.accumulator;
+        self.accumulator = accumulator >> 1;
     }
 
     // 4C - Start program execution at a value stored at a location in memory
@@ -1106,6 +1113,15 @@ mod tests {
         let accumulator_in_stack = cpu.memory.get_8_bit_value(0x01FF);
 
         assert_eq!(accumulator_in_stack, cpu.accumulator);
+    }
+
+    #[test]
+    fn test_lsr_accumulator() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0b10010001;
+        cpu.asm_lsr_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b01001000);
     }
 
     #[test]
