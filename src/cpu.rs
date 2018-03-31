@@ -88,6 +88,7 @@ impl CPU {
             0x4C => { self.asm_jmp_absolute(instruction_data); }
             0x4D => { self.asm_rti(); }
             0x60 => { self.asm_rts(); }
+            0x68 => { self.asm_pla(); }
             0x78 => { self.asm_sei(); }
             0x85 => { self.asm_sta_zero_page(instruction_data); }
             0x86 => { self.asm_stx_zero_page(instruction_data); }
@@ -363,6 +364,12 @@ impl CPU {
         let lower_byte: u8 = self.pull_stack();
         let upper_byte: u8 = self.pull_stack();
         self.program_counter = CPU::convert_to_address(&[lower_byte, upper_byte]) + 1;
+    }
+
+    // 68 - Pull accumulator from the stack
+    fn asm_pla(&mut self) {
+        let accumulator = self.pull_stack();
+        self.accumulator = accumulator;
     }
 
     // 78 - Sets interrupts as being disabled
@@ -1156,6 +1163,15 @@ mod tests {
         let accumulator_in_stack = cpu.memory.get_8_bit_value(0x01FF);
 
         assert_eq!(accumulator_in_stack, cpu.accumulator);
+    }
+
+    #[test]
+    fn test_pla() {
+        let mut cpu: CPU = CPU::new();
+        cpu.push_stack(0x56);
+        cpu.asm_pla();
+
+        assert_eq!(cpu.accumulator, 0x56);
     }
 
     #[test]
