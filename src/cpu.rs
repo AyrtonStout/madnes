@@ -74,7 +74,9 @@ impl CPU {
         println!("  Program Counter: {} ({:X})", self.program_counter, self.program_counter);
         */
         match opcode {
+            0x05 => { self.asm_ora_zero_page(instruction_data) }
             0x09 => { self.asm_ora_immediate(instruction_data) }
+            0x0D => { self.asm_ora_absolute(instruction_data) }
             0x10 => { self.asm_bpl(instruction_data) }
             0x18 => { self.asm_clc(); }
             0x20 => { self.asm_jsr(instruction_data) }
@@ -277,9 +279,21 @@ impl CPU {
         self.accumulator = result;
     }
 
+    // 05 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
+    fn asm_ora_zero_page(&mut self, instruction_data: &[u8]) {
+        self.asm_ora_absolute(&[instruction_data[0], 0x00]);
+    }
+
     // 09 - 'OR's a literal value with the accumulator. Stores value in the accumulator
     fn asm_ora_immediate(&mut self, instruction_data: &[u8]) {
         self.or_with_accumulator(instruction_data[0]);
+    }
+
+    // 0D - 'OR's a memory value with the accumulator. Stores value in the accumulator
+    fn asm_ora_absolute(&mut self, instruction_data: &[u8]) {
+        let address = CPU::convert_to_address(instruction_data);
+        let memory_value = self.memory.get_8_bit_value(address);
+        self.or_with_accumulator(memory_value);
     }
 
     // 10 - Branches on 'result plus' - the result being a positive number
@@ -1090,6 +1104,7 @@ mod tests {
         cpu.x_register = 0x21;
         cpu.asm_txa();
 
+        assert_eq!(cpu.accumulator, 0x21);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
 
@@ -1192,6 +1207,58 @@ mod tests {
 
         cpu.accumulator = 0x12;
         cpu.asm_ora_immediate(&[0x80]);
+        assert_eq!(cpu.accumulator, 0x92);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_ora_absolute() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x22;
+        cpu.memory.set_8_bit_value(0x500, 0x11);
+        cpu.asm_ora_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x33);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x00;
+        cpu.memory.set_8_bit_value(0x500, 0x00);
+        cpu.asm_ora_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x12;
+        cpu.memory.set_8_bit_value(0x500, 0x80);
+        cpu.asm_ora_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x92);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_ora_zero_page() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x22;
+        cpu.memory.set_8_bit_value(0x39, 0x11);
+        cpu.asm_ora_absolute(&[0x39]);
+        assert_eq!(cpu.accumulator, 0x33);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x00;
+        cpu.memory.set_8_bit_value(0x39, 0x00);
+        cpu.asm_ora_absolute(&[0x39]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x12;
+        cpu.memory.set_8_bit_value(0x39, 0x80);
+        cpu.asm_ora_absolute(&[0x39]);
         assert_eq!(cpu.accumulator, 0x92);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
