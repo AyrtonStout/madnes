@@ -100,6 +100,7 @@ impl CPU {
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xA9 => { self.asm_lda_immediate(instruction_data); }
+            0xAA => { self.asm_tax(); }
             0xAC => { self.asm_ldy_absolute(instruction_data); }
             0xAD => { self.asm_lda_absolute(instruction_data); }
             0xAE => { self.asm_ldx_absolute(instruction_data); }
@@ -436,6 +437,14 @@ impl CPU {
         self.set_sign_bit(instruction_data[0]);
         self.set_zero(instruction_data[0]);
         self.accumulator = instruction_data[0];
+    }
+
+    // AA - Transfers the accumulator into index X
+    fn asm_tax(&mut self) {
+        let accumulator = self.accumulator;
+        self.set_sign_bit(accumulator);
+        self.set_zero(accumulator);
+        self.x_register = accumulator;
     }
 
     // AC - Loads a specific value into the accumulator
@@ -1090,6 +1099,25 @@ mod tests {
 
         cpu.x_register = 0x00;
         cpu.asm_txa();
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_tax() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x21;
+        cpu.asm_tax();
+
+        assert_eq!(cpu.x_register, 0x21);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.accumulator = 0x91;
+        cpu.asm_tax();
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.accumulator = 0x00;
+        cpu.asm_tax();
         assert_eq!(cpu.is_zero_set(), true);
     }
 
