@@ -81,6 +81,7 @@ impl CPU {
             0x29 => { self.asm_and_immediate(instruction_data) }
             0x2C => { self.asm_bit_absolute(instruction_data); }
             0x38 => { self.asm_sec(); }
+            0x48 => { self.asm_pha(); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
             0x4D => { self.asm_rti(); }
             0x60 => { self.asm_rts(); }
@@ -316,6 +317,12 @@ impl CPU {
     // 38 - Sets carry flag as being set
     fn asm_sec(&mut self) {
         self.set_carry_bit(true);
+    }
+
+    // 48 - Push accumulator onto the stack
+    fn asm_pha(&mut self) {
+        let accumulator = self.accumulator;
+        self.push_stack(accumulator);
     }
 
     // 4C - Start program execution at a value stored at a location in memory
@@ -1088,6 +1095,17 @@ mod tests {
 
         assert_eq!(cpu.program_counter, 0x8054);
         assert_eq!(cpu.stack_pointer, 0xFF);
+    }
+
+    #[test]
+    fn test_pha() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x42;
+        cpu.asm_pha();
+
+        let accumulator_in_stack = cpu.memory.get_8_bit_value(0x01FF);
+
+        assert_eq!(accumulator_in_stack, cpu.accumulator);
     }
 
     #[test]
