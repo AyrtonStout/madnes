@@ -183,7 +183,7 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "TXS", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // 9A
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9B
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9C
-    InstructionType { name: "STA", num_bytes: 2, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // 9D (Absolute, X)
+    InstructionType { name: "STA", num_bytes: 3, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // 9D (Absolute, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9E
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9F
 
