@@ -83,7 +83,9 @@ impl CPU {
             0x29 => { self.asm_and_immediate(instruction_data) }
             0x2A => { self.asm_rol_accumulator(); }
             0x2C => { self.asm_bit_absolute(instruction_data); }
+            0x2D => { self.asm_and_absolute(instruction_data); }
             0x38 => { self.asm_sec(); }
+            0x3D => { self.asm_and_absolute_x(instruction_data); }
             0x48 => { self.asm_pha(); }
             0x4A => { self.asm_lsr_accumulator(); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
@@ -318,7 +320,7 @@ impl CPU {
         self.program_counter = CPU::convert_to_address(instruction_data);
     }
 
-    // 29 - 'OR's a literal value with the accumulator. Stores value in the accumulator
+    // 29 - 'AND's a literal value with the accumulator. Stores value in the accumulator
     fn asm_and_immediate(&mut self, instruction_data: &[u8]) {
         self.and_with_accumulator(instruction_data[0]);
     }
@@ -343,9 +345,25 @@ impl CPU {
         self.set_zero(memory_value & accumulator);
     }
 
+    // 2D - 'AND's a memory value with the accumulator. Stores value in the accumulator
+    fn asm_and_absolute(&mut self, instruction_data: &[u8]) {
+        let address = CPU::convert_to_address(instruction_data);
+        let memory_value = self.memory.get_8_bit_value(address);
+
+        self.and_with_accumulator(memory_value);
+    }
+
     // 38 - Sets carry flag as being set
     fn asm_sec(&mut self) {
         self.set_carry_bit(true);
+    }
+
+    // 3D - 'AND's an x index memory value with the accumulator. Stores value in the accumulator
+    fn asm_and_absolute_x(&mut self, instruction_data: &[u8]) {
+        let computed_address = self.compute_absolute_x_address(instruction_data);
+        let memory_value = self.memory.get_8_bit_value(computed_address);
+
+        self.and_with_accumulator(memory_value);
     }
 
     // 48 - Push accumulator onto the stack
@@ -1390,6 +1408,60 @@ mod tests {
 
         cpu.accumulator = 0x89;
         cpu.asm_and_immediate(&[0x81]);
+        assert_eq!(cpu.accumulator, 0x81);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_and_absolute() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x23;
+        cpu.memory.set_8_bit_value(0x500, 0x25);
+        cpu.asm_and_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x21);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x22;
+        cpu.memory.set_8_bit_value(0x500, 0x11);
+        cpu.asm_and_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x89;
+        cpu.memory.set_8_bit_value(0x500, 0x81);
+        cpu.asm_and_absolute(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x81);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_and_absolute_x() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x23;
+        cpu.x_register = 0x02;
+        cpu.memory.set_8_bit_value(0x502, 0x25);
+        cpu.asm_and_absolute_x(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x21);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x22;
+        cpu.memory.set_8_bit_value(0x502, 0x11);
+        cpu.asm_and_absolute_x(&[0x00, 0x05]);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+
+        cpu.accumulator = 0x89;
+        cpu.x_register = 0xFF;
+        cpu.memory.set_8_bit_value(0x4FF, 0x81);
+        cpu.asm_and_absolute_x(&[0x00, 0x05]);
         assert_eq!(cpu.accumulator, 0x81);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
