@@ -81,6 +81,7 @@ impl CPU {
             0x18 => { self.asm_clc(); }
             0x20 => { self.asm_jsr(instruction_data) }
             0x29 => { self.asm_and_immediate(instruction_data) }
+            0x2A => { self.asm_rol_accumulator(); }
             0x2C => { self.asm_bit_absolute(instruction_data); }
             0x38 => { self.asm_sec(); }
             0x48 => { self.asm_pha(); }
@@ -322,6 +323,17 @@ impl CPU {
         self.and_with_accumulator(instruction_data[0]);
     }
 
+    // 2A - Bitshift accumulator to the left by 1
+    fn asm_rol_accumulator(&mut self) {
+        let accumulator = self.accumulator;
+        let shifted_accumulator = self.accumulator << 1;
+        let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x01 } else { shifted_accumulator }; // Why Rust no have ternary
+        self.set_zero(final_accumulator);
+        self.set_sign_bit(final_accumulator);
+        self.set_carry_bit((accumulator & 0x80) == 0x80);
+        self.accumulator = final_accumulator;
+    }
+
     // 2C - Sets various flags based off the current accumulator and memory address
     fn asm_bit_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value: u8 = self.read_absolute_value(instruction_data);
@@ -345,7 +357,12 @@ impl CPU {
     // 4A - Bitshift accumulator to the right by 1
     fn asm_lsr_accumulator(&mut self) {
         let accumulator = self.accumulator;
-        self.accumulator = accumulator >> 1;
+        let shifted_accumulator = self.accumulator >> 1;
+        let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x80 } else { shifted_accumulator }; // Why Rust no have ternary
+        self.set_zero(final_accumulator);
+        self.set_sign_bit(final_accumulator);
+        self.set_carry_bit((accumulator & 0x01) == 0x01);
+        self.accumulator = final_accumulator;
     }
 
     // 4C - Start program execution at a value stored at a location in memory
@@ -1181,6 +1198,57 @@ mod tests {
         cpu.asm_lsr_accumulator();
 
         assert_eq!(cpu.accumulator, 0b01001000);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b01000000;
+        cpu.set_carry_bit(true);
+        cpu.asm_lsr_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b10100000);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b00000001;
+        cpu.set_carry_bit(false);
+        cpu.asm_lsr_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b00000000);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_rol_accumulator() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0b10010001;
+        cpu.asm_rol_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b00100010);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b01000001;
+        cpu.set_carry_bit(true);
+        cpu.asm_rol_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b10000011);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b00000000;
+        cpu.set_carry_bit(false);
+        cpu.asm_rol_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b00000000);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
     }
 
     #[test]
