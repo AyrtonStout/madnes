@@ -468,6 +468,13 @@ impl CPU {
         self.memory.set_8_bit_value(address, self.x_register);
     }
 
+    // 90 - Branches on 'carry clear' - the carry bit being 0 / not set
+    fn asm_bcc(&mut self, instruction_data: &[u8]) {
+        if self.is_carry_set() { return; }
+
+        self.branch(instruction_data[0]);
+    }
+
     // 91 - Puts the accumulator into a post-indexed 2-byte memory address
     fn asm_sta_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
@@ -669,7 +676,7 @@ mod tests {
     fn test_bcs() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x30;
-        cpu.status_register = 0x01;
+        cpu.set_carry_bit(true);
         cpu.asm_bcs(&[0x08]);
 
         assert_eq!(cpu.program_counter, 0x38);
@@ -679,7 +686,28 @@ mod tests {
     fn test_bcs_negative_condition() {
         let mut cpu: CPU = CPU::new();
         cpu.program_counter = 0x38;
+        cpu.set_carry_bit(false);
         cpu.asm_bcs(&[0xFA]);
+
+        assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_bcc() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x30;
+        cpu.set_carry_bit(false);
+        cpu.asm_bcc(&[0x08]);
+
+        assert_eq!(cpu.program_counter, 0x38);
+    }
+
+    #[test]
+    fn test_bcc_negative_condition() {
+        let mut cpu: CPU = CPU::new();
+        cpu.program_counter = 0x38;
+        cpu.set_carry_bit(true);
+        cpu.asm_bcc(&[0xFA]);
 
         assert_eq!(cpu.program_counter, 0x38);
     }
