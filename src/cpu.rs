@@ -1321,7 +1321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ora_immediate() {
+    fn test_ora_core() {
         let mut cpu: CPU = CPU::new();
 
         cpu.accumulator = 0x22;
@@ -1344,6 +1344,23 @@ mod tests {
     }
 
     #[test]
+    fn test_ora_immediate() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x22;
+        cpu.asm_ora_immediate(&[0x11]);
+        assert_eq!(cpu.accumulator, 0x33);
+
+        cpu.accumulator = 0x00;
+        cpu.asm_ora_immediate(&[0x00]);
+        assert_eq!(cpu.accumulator, 0x00);
+
+        cpu.accumulator = 0x12;
+        cpu.asm_ora_immediate(&[0x80]);
+        assert_eq!(cpu.accumulator, 0x92);
+    }
+
+    #[test]
     fn test_ora_absolute() {
         let mut cpu: CPU = CPU::new();
 
@@ -1351,22 +1368,16 @@ mod tests {
         cpu.memory.set_8_bit_value(0x500, 0x11);
         cpu.asm_ora_absolute(&[0x00, 0x05]);
         assert_eq!(cpu.accumulator, 0x33);
-        assert_eq!(cpu.is_negative_set(), false);
-        assert_eq!(cpu.is_zero_set(), false);
 
         cpu.accumulator = 0x00;
         cpu.memory.set_8_bit_value(0x500, 0x00);
         cpu.asm_ora_absolute(&[0x00, 0x05]);
         assert_eq!(cpu.accumulator, 0x00);
-        assert_eq!(cpu.is_negative_set(), false);
-        assert_eq!(cpu.is_zero_set(), true);
 
         cpu.accumulator = 0x12;
         cpu.memory.set_8_bit_value(0x500, 0x80);
         cpu.asm_ora_absolute(&[0x00, 0x05]);
         assert_eq!(cpu.accumulator, 0x92);
-        assert_eq!(cpu.is_negative_set(), true);
-        assert_eq!(cpu.is_zero_set(), false);
     }
 
     #[test]
@@ -1377,22 +1388,16 @@ mod tests {
         cpu.memory.set_8_bit_value(0x39, 0x11);
         cpu.asm_ora_absolute(&[0x39]);
         assert_eq!(cpu.accumulator, 0x33);
-        assert_eq!(cpu.is_negative_set(), false);
-        assert_eq!(cpu.is_zero_set(), false);
 
         cpu.accumulator = 0x00;
         cpu.memory.set_8_bit_value(0x39, 0x00);
         cpu.asm_ora_absolute(&[0x39]);
         assert_eq!(cpu.accumulator, 0x00);
-        assert_eq!(cpu.is_negative_set(), false);
-        assert_eq!(cpu.is_zero_set(), true);
 
         cpu.accumulator = 0x12;
         cpu.memory.set_8_bit_value(0x39, 0x80);
         cpu.asm_ora_absolute(&[0x39]);
         assert_eq!(cpu.accumulator, 0x92);
-        assert_eq!(cpu.is_negative_set(), true);
-        assert_eq!(cpu.is_zero_set(), false);
     }
 
     #[test]
