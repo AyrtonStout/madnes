@@ -99,6 +99,7 @@ impl CPU {
             0x8A => { self.asm_txa(); }
             0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
+            0x90 => { self.asm_bcc(instruction_data); }
             0x91 => { self.asm_sta_post_indexed(instruction_data); }
             0x99 => { self.asm_sta_absolute_y(instruction_data); }
             0x9A => { self.asm_txs(); }
@@ -118,6 +119,7 @@ impl CPU {
             0xC8 => { self.asm_iny(); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xCA => { self.asm_dex(); }
+            0xCE => { self.asm_dec_absolute(instruction_data); }
             0xD0 => { self.asm_bne(instruction_data); }
             0xD8 => { self.asm_cld(); }
             0xE0 => { self.asm_cpx_immediate(instruction_data); }
@@ -595,6 +597,16 @@ impl CPU {
         self.set_sign_bit(x_register);
         self.set_zero_bit(x_register == 0);
         self.x_register = x_register;
+    }
+
+    // CE - Decrements the value at a memory location by 1
+    fn asm_dec_absolute(&mut self, instruction_data: &[u8]) {
+        let memory_location: u16 = CPU::convert_to_address(instruction_data);
+        let memory_value: u8 = self.memory.get_8_bit_value(memory_location);
+        let new_memory_value = memory_value.wrapping_sub(1);
+        self.memory.set_8_bit_value(memory_location, new_memory_value);
+        self.set_sign_bit(new_memory_value);
+        self.set_zero(new_memory_value);
     }
 
     // D0 - Branch on result not zero
@@ -1156,7 +1168,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inc() {
+    fn test_inc_absolute() {
         let mut cpu: CPU = CPU::new();
         cpu.memory.set_8_bit_value(0x1020, 0x50);
         cpu.asm_inc_absolute(&[0x20, 0x10]);
@@ -1172,6 +1184,28 @@ mod tests {
 
         cpu.memory.set_8_bit_value(0x1020, 0xFF);
         cpu.asm_inc_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+    }
+
+    #[test]
+    fn test_dec_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x1020, 0x50);
+        cpu.asm_dec_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x4F);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.memory.set_8_bit_value(0x1020, 0x81);
+        cpu.asm_dec_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x80);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.memory.set_8_bit_value(0x1020, 0x01);
+        cpu.asm_dec_absolute(&[0x20, 0x10]);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
         assert_eq!(cpu.is_zero_set(), true);
         assert_eq!(cpu.is_negative_set(), false);
