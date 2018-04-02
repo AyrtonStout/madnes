@@ -124,6 +124,7 @@ impl CPU {
             0xD8 => { self.asm_cld(); }
             0xE0 => { self.asm_cpx_immediate(instruction_data); }
             0xE8 => { self.asm_inx(); }
+            0xE6 => { self.asm_inc_zero_page(instruction_data); }
             0xEE => { self.asm_inc_absolute(instruction_data); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
@@ -301,6 +302,14 @@ impl CPU {
         self.set_sign_bit(source);
         self.set_zero(source);
         self.x_register = source;
+    }
+
+    fn inc(&mut self, address: u16) {
+        let memory_value = self.memory.get_8_bit_value(address);
+        let new_memory_value = memory_value.wrapping_add(1);
+        self.memory.set_8_bit_value(address, new_memory_value);
+        self.set_sign_bit(new_memory_value);
+        self.set_zero(new_memory_value);
     }
 
     // 05 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
@@ -627,6 +636,11 @@ impl CPU {
         self.compare(x_register, instruction_data[0]);
     }
 
+    // E6 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
+    fn asm_inc_zero_page(&mut self, instruction_data: &[u8]) {
+        self.asm_inc_absolute(&[instruction_data[0], 0x00]);
+    }
+
     // E8 - Increments X register by 1
     fn asm_inx(&mut self) {
         let x_register: u8 = self.x_register.wrapping_add(1);
@@ -637,12 +651,8 @@ impl CPU {
 
     // EE - Increments the value at a memory location by 1
     fn asm_inc_absolute(&mut self, instruction_data: &[u8]) {
-        let memory_location: u16 = CPU::convert_to_address(instruction_data);
-        let memory_value: u8 = self.memory.get_8_bit_value(memory_location);
-        let new_memory_value = memory_value.wrapping_add(1);
-        self.memory.set_8_bit_value(memory_location, new_memory_value);
-        self.set_sign_bit(new_memory_value);
-        self.set_zero(new_memory_value);
+        let address = CPU::convert_to_address(instruction_data);
+        self.inc(address);
     }
 
 }
@@ -1168,25 +1178,41 @@ mod tests {
     }
 
     #[test]
-    fn test_inc_absolute() {
+    fn test_inc() {
         let mut cpu: CPU = CPU::new();
         cpu.memory.set_8_bit_value(0x1020, 0x50);
-        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        cpu.inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x51);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
 
         cpu.memory.set_8_bit_value(0x1020, 0x7F);
-        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        cpu.inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x80);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x1020, 0xFF);
-        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        cpu.inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
         assert_eq!(cpu.is_zero_set(), true);
         assert_eq!(cpu.is_negative_set(), false);
+    }
+
+    #[test]
+    fn test_inc_absolute() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x1020, 0x50);
+        cpu.asm_inc_absolute(&[0x20, 0x10]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x51);
+    }
+
+    #[test]
+    fn test_inc_zero_page() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x23, 0x50);
+        cpu.asm_inc_zero_page(&[0x23]);
+        assert_eq!(cpu.memory.get_8_bit_value(0x23), 0x51);
     }
 
     #[test]
