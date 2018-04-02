@@ -283,6 +283,12 @@ impl CPU {
         self.accumulator = result;
     }
 
+    fn lda(&mut self, source: u8) {
+        self.set_sign_bit(source);
+        self.set_zero(source);
+        self.accumulator = source;
+    }
+
     // 05 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
     fn asm_ora_zero_page(&mut self, instruction_data: &[u8]) {
         self.asm_ora_absolute(&[instruction_data[0], 0x00]);
@@ -490,9 +496,7 @@ impl CPU {
 
     // A9 - Loads a specific value into the accumulator
     fn asm_lda_immediate(&mut self, instruction_data: &[u8]) {
-        self.set_sign_bit(instruction_data[0]);
-        self.set_zero(instruction_data[0]);
-        self.accumulator = instruction_data[0];
+        self.lda(instruction_data[0]);
     }
 
     // AA - Transfers the accumulator into index X
@@ -514,10 +518,7 @@ impl CPU {
     // AD - Loads a specific value into the accumulator
     fn asm_lda_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value = self.read_absolute_value(instruction_data);
-
-        self.set_sign_bit(memory_value);
-        self.set_zero(memory_value);
-        self.accumulator = memory_value;
+        self.lda(memory_value);
     }
 
     // AE - Loads a specific value into the accumulator
@@ -539,22 +540,16 @@ impl CPU {
     // B1 - Puts the a post-indexed 2-byte memory address into the accumulator
     fn asm_lda_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
-        let accumulator = self.memory.get_8_bit_value(address);
-
-        self.set_sign_bit(accumulator);
-        self.set_zero(accumulator);
-        self.accumulator = accumulator;
+        let memory_value = self.memory.get_8_bit_value(address);
+        self.lda(memory_value);
     }
 
     // BD - Takes two bytes of data representing an address, then adds (in a signed manner) the value in the x_register
     //      Loads the value stored at this memory location into the accumulator
     fn asm_lda_absolute_x(&mut self, instruction_data: &[u8]) {
         let computed_address = self.compute_absolute_x_address(instruction_data);
-
         let memory_value = self.memory.get_8_bit_value(computed_address as u16);
-        self.set_sign_bit(memory_value);
-        self.set_zero(instruction_data[0]);
-        self.accumulator = memory_value;
+        self.lda(memory_value);
     }
 
     // BE - Puts the post-indexed 2-byte memory address into the x register
@@ -739,15 +734,33 @@ mod tests {
     }
 
     #[test]
+    fn test_lda_core() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.lda(0x22);
+        assert_eq!(cpu.accumulator, 0x22);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.lda(0x83);
+        assert_eq!(cpu.accumulator, 0x83);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.lda(0x00);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
     fn test_lda_immediate() {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
         assert_eq!(cpu.accumulator, 0x22);
-        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_lda_immediate(&[0xA2]);
         assert_eq!(cpu.accumulator, 0xA2);
-        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -756,12 +769,10 @@ mod tests {
         cpu.memory.set_8_bit_value(0x0271, 0xB4);
         cpu.asm_lda_absolute(&[0x71, 0x02]);
         assert_eq!(cpu.accumulator, 0xB4);
-        assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x0272, 0x04);
         cpu.asm_lda_absolute(&[0x72, 0x02]);
         assert_eq!(cpu.accumulator, 0x04);
-        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
@@ -772,14 +783,12 @@ mod tests {
 
         cpu.asm_lda_absolute_x(&[0x33, 0x61]);
         assert_eq!(cpu.accumulator, 0x50);
-        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.x_register = 0xFE;
         cpu.memory.set_8_bit_value(0x6131, 0xB2);
 
         cpu.asm_lda_absolute_x(&[0x33, 0x61]);
         assert_eq!(cpu.accumulator, 0xB2);
-        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
