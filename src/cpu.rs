@@ -289,6 +289,18 @@ impl CPU {
         self.accumulator = source;
     }
 
+    fn ldy(&mut self, source: u8) {
+        self.set_sign_bit(source);
+        self.set_zero(source);
+        self.y_register = source;
+    }
+
+    fn ldx(&mut self, source: u8) {
+        self.set_sign_bit(source);
+        self.set_zero(source);
+        self.x_register = source;
+    }
+
     // 05 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
     fn asm_ora_zero_page(&mut self, instruction_data: &[u8]) {
         self.asm_ora_absolute(&[instruction_data[0], 0x00]);
@@ -482,16 +494,12 @@ impl CPU {
 
     // A0 - Loads a specific value into the Y register
     fn asm_ldy_immediate(&mut self, instruction_data: &[u8]) {
-        self.set_sign_bit(instruction_data[0]);
-        self.set_zero(instruction_data[0]);
-        self.y_register = instruction_data[0];
+        self.ldy(instruction_data[0]);
     }
 
     // A2 - Loads a specific value into the X register
     fn asm_ldx_immediate(&mut self, instruction_data: &[u8]) {
-        self.set_sign_bit(instruction_data[0]);
-        self.set_zero(instruction_data[0]);
-        self.x_register = instruction_data[0];
+        self.ldx(instruction_data[0]);
     }
 
     // A9 - Loads a specific value into the accumulator
@@ -510,9 +518,7 @@ impl CPU {
     // AC - Loads a specific value into the accumulator
     fn asm_ldy_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value = self.read_absolute_value(instruction_data);
-        self.set_sign_bit(memory_value);
-        self.set_zero(memory_value);
-        self.y_register = memory_value;
+        self.ldy(memory_value);
     }
 
     // AD - Loads a specific value into the accumulator
@@ -524,10 +530,7 @@ impl CPU {
     // AE - Loads a specific value into the accumulator
     fn asm_ldx_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value = self.read_absolute_value(instruction_data);
-
-        self.set_sign_bit(memory_value);
-        self.set_zero(memory_value);
-        self.x_register = memory_value;
+        self.ldx(memory_value);
     }
 
     // B0 - Branch when carry is set
@@ -556,10 +559,7 @@ impl CPU {
     fn asm_ldx_post_indexed(&mut self, instruction_data: &[u8]) {
         let address: u16 = self.get_post_indexed_indirect_address(instruction_data[0]);
         let x_register = self.memory.get_8_bit_value(address);
-
-        self.set_sign_bit(x_register);
-        self.set_zero(x_register);
-        self.x_register = x_register;
+        self.ldx(x_register);
     }
 
     // C0 - Compare literal value with value stored in the y register
@@ -754,6 +754,46 @@ mod tests {
     }
 
     #[test]
+    fn test_ldy_core() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.ldy(0x22);
+        assert_eq!(cpu.y_register, 0x22);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.ldy(0x83);
+        assert_eq!(cpu.y_register, 0x83);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.ldy(0x00);
+        assert_eq!(cpu.y_register, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_ldx_core() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.ldx(0x22);
+        assert_eq!(cpu.x_register, 0x22);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.ldx(0x83);
+        assert_eq!(cpu.x_register, 0x83);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.ldx(0x00);
+        assert_eq!(cpu.x_register, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
     fn test_lda_immediate() {
         let mut cpu: CPU = CPU::new();
         cpu.asm_lda_immediate(&[0x22]);
@@ -874,14 +914,12 @@ mod tests {
     #[test]
     fn test_ldy_immediate() {
         let mut cpu: CPU = CPU::new();
-        cpu.asm_ldy_immediate(&[0x52]);
 
+        cpu.asm_ldy_immediate(&[0x52]);
         assert_eq!(0x52, cpu.y_register);
-        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_ldy_immediate(&[0x98]);
         assert_eq!(0x98, cpu.y_register);
-        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -890,25 +928,21 @@ mod tests {
         cpu.memory.set_8_bit_value(0x0271, 0xB4);
         cpu.asm_ldy_absolute(&[0x71, 0x02]);
         assert_eq!(cpu.y_register, 0xB4);
-        assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x0272, 0x04);
         cpu.asm_ldy_absolute(&[0x72, 0x02]);
         assert_eq!(cpu.y_register, 0x04);
-        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
     fn test_ldx_immediate() {
         let mut cpu: CPU = CPU::new();
-        cpu.asm_ldx_immediate(&[0x52]);
 
+        cpu.asm_ldx_immediate(&[0x52]);
         assert_eq!(0x52, cpu.x_register);
-        assert_eq!(cpu.is_negative_set(), false);
 
         cpu.asm_ldx_immediate(&[0x98]);
         assert_eq!(0x98, cpu.x_register);
-        assert_eq!(cpu.is_negative_set(), true);
     }
 
     #[test]
@@ -917,12 +951,10 @@ mod tests {
         cpu.memory.set_8_bit_value(0x0271, 0xB4);
         cpu.asm_ldx_absolute(&[0x71, 0x02]);
         assert_eq!(cpu.x_register, 0xB4);
-        assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x0272, 0x04);
         cpu.asm_ldx_absolute(&[0x72, 0x02]);
         assert_eq!(cpu.x_register, 0x04);
-        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
@@ -935,18 +967,6 @@ mod tests {
 
         cpu.asm_ldx_post_indexed(&[0x32]);
         assert_eq!(cpu.x_register, 0x42);
-        assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_negative_set(), false);
-
-        cpu.memory.set_8_bit_value(0x0505, 0x82);
-        cpu.asm_lda_post_indexed(&[0x32]);
-        assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_negative_set(), true);
-
-        cpu.memory.set_8_bit_value(0x0505, 0x00);
-        cpu.asm_lda_post_indexed(&[0x32]);
-        assert_eq!(cpu.is_zero_set(), true);
-        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
@@ -1385,18 +1405,6 @@ mod tests {
 
         cpu.asm_lda_post_indexed(&[0x32]);
         assert_eq!(cpu.accumulator, 0x42);
-        assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_negative_set(), false);
-
-        cpu.memory.set_8_bit_value(0x0505, 0x82);
-        cpu.asm_lda_post_indexed(&[0x32]);
-        assert_eq!(cpu.is_zero_set(), false);
-        assert_eq!(cpu.is_negative_set(), true);
-
-        cpu.memory.set_8_bit_value(0x0505, 0x00);
-        cpu.asm_lda_post_indexed(&[0x32]);
-        assert_eq!(cpu.is_zero_set(), true);
-        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
