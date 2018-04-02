@@ -126,6 +126,7 @@ impl CPU {
             0xE8 => { self.asm_inx(); }
             0xE6 => { self.asm_inc_zero_page(instruction_data); }
             0xEE => { self.asm_inc_absolute(instruction_data); }
+            0xF0 => { self.asm_beq(instruction_data); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
             }
@@ -655,6 +656,13 @@ impl CPU {
         self.inc(address);
     }
 
+    // F0 - Branches on 'result zero' - the last result having been zero
+    fn asm_beq(&mut self, instruction_data: &[u8]) {
+        if !self.is_zero_set() { return; }
+
+        self.branch(instruction_data[0]);
+    }
+
 }
 
 #[cfg(test)]
@@ -692,6 +700,24 @@ mod tests {
         cpu.status_register = 0x80;
         cpu.asm_bpl(&[0x87]);
         assert_eq!(cpu.program_counter, 0x30);
+    }
+
+    #[test]
+    fn test_beq() {
+        let mut cpu: CPU = CPU::new();
+        cpu.set_zero_bit(true);
+        cpu.program_counter = 0x20;
+        cpu.asm_beq(&[0x17]);
+        assert_eq!(cpu.program_counter, 0x37);
+    }
+
+    #[test]
+    fn test_beq_false_condition() {
+        let mut cpu: CPU = CPU::new();
+        cpu.set_zero_bit(false);
+        cpu.program_counter = 0x20;
+        cpu.asm_beq(&[0x17]);
+        assert_eq!(cpu.program_counter, 0x20);
     }
 
     #[test]
