@@ -127,6 +127,7 @@ impl CPU {
             0xE6 => { self.asm_inc_zero_page(instruction_data); }
             0xEE => { self.asm_inc_absolute(instruction_data); }
             0xF0 => { self.asm_beq(instruction_data); }
+            0xF9 => { self.asm_sbc_post_indexed(instruction_data); }
             _ => {
                 println!("Found unimplemented opcode {:X}", opcode);
             }
@@ -153,7 +154,7 @@ impl CPU {
         }
     }
 
-    fn set_sign_bit(&mut self, result: u8) {
+    fn set_sign(&mut self, result: u8) {
         if (result & 0x80) == 0x80 {
             self.status_register |= 0x80;
         } else {
@@ -161,7 +162,7 @@ impl CPU {
         }
     }
 
-    fn set_overflow(&mut self, is_set: bool) {
+    fn set_overflow_bit(&mut self, is_set: bool) {
         if is_set {
             self.status_register |= 0x40;
         } else {
@@ -270,37 +271,37 @@ impl CPU {
         self.set_zero_bit(cpu_data == src);
 
         let difference = cpu_data.wrapping_sub(src);
-        self.set_sign_bit(difference);
+        self.set_sign(difference);
     }
 
     fn or_with_accumulator(&mut self, source: u8) {
         let result = source | self.accumulator;
-        self.set_sign_bit(result);
+        self.set_sign(result);
         self.set_zero(result);
         self.accumulator = result;
     }
 
     fn and_with_accumulator(&mut self, source: u8) {
         let result = source & self.accumulator;
-        self.set_sign_bit(result);
+        self.set_sign(result);
         self.set_zero(result);
         self.accumulator = result;
     }
 
     fn lda(&mut self, source: u8) {
-        self.set_sign_bit(source);
+        self.set_sign(source);
         self.set_zero(source);
         self.accumulator = source;
     }
 
     fn ldy(&mut self, source: u8) {
-        self.set_sign_bit(source);
+        self.set_sign(source);
         self.set_zero(source);
         self.y_register = source;
     }
 
     fn ldx(&mut self, source: u8) {
-        self.set_sign_bit(source);
+        self.set_sign(source);
         self.set_zero(source);
         self.x_register = source;
     }
@@ -309,8 +310,24 @@ impl CPU {
         let memory_value = self.memory.get_8_bit_value(address);
         let new_memory_value = memory_value.wrapping_add(1);
         self.memory.set_8_bit_value(address, new_memory_value);
-        self.set_sign_bit(new_memory_value);
+        self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
+    }
+
+    // Subtraction (with carry)
+    // http://www.6502.org/tutorials/vflag.html#2.4
+    fn sbc(&mut self, source: u8) {
+        let carry: u16 = if self.is_carry_set() { 0 } else { 1 };
+        let accumulator: u16 = self.accumulator as u16;
+        let temp: u16 = accumulator.wrapping_sub(source as u16 + carry);
+
+        self.set_sign(temp as u8);
+        self.set_zero(temp as u8);
+        self.set_overflow_bit(((accumulator ^ temp) & 0x80) > 0
+            && ((accumulator ^ source as u16) & 0x80) > 0);
+        self.set_carry_bit(temp < 0x100);
+
+        self.accumulator = temp as u8;
     }
 
     // 05 - 'OR's a zero page value with the accumulator. Stores value in the accumulator
@@ -361,7 +378,7 @@ impl CPU {
         let shifted_accumulator = self.accumulator << 1;
         let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x01 } else { shifted_accumulator }; // Why Rust no have ternary
         self.set_zero(final_accumulator);
-        self.set_sign_bit(final_accumulator);
+        self.set_sign(final_accumulator);
         self.set_carry_bit((accumulator & 0x80) == 0x80);
         self.accumulator = final_accumulator;
     }
@@ -370,8 +387,8 @@ impl CPU {
     fn asm_bit_absolute(&mut self, instruction_data: &[u8]) {
         let memory_value: u8 = self.read_absolute_value(instruction_data);
         let accumulator = self.accumulator;
-        self.set_sign_bit(memory_value);
-        self.set_overflow((memory_value & 0x40) == 0x40);
+        self.set_sign(memory_value);
+        self.set_overflow_bit((memory_value & 0x40) == 0x40);
         self.set_zero(memory_value & accumulator);
     }
 
@@ -408,7 +425,7 @@ impl CPU {
         let shifted_accumulator = self.accumulator >> 1;
         let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x80 } else { shifted_accumulator }; // Why Rust no have ternary
         self.set_zero(final_accumulator);
-        self.set_sign_bit(final_accumulator);
+        self.set_sign(final_accumulator);
         self.set_carry_bit((accumulator & 0x01) == 0x01);
         self.accumulator = final_accumulator;
     }
@@ -455,15 +472,15 @@ impl CPU {
     // 88 - Decrements Y register by 1
     fn asm_dey(&mut self) {
         let y_register: u8 = self.y_register.wrapping_sub(1);
-        self.set_sign_bit(y_register);
+        self.set_sign(y_register);
         self.set_zero_bit(y_register == 0);
         self.y_register = y_register;
     }
 
-    // 8A - Puts the accumulator into a specific 2-byte memory address
+    // 8A - Puts the X register into the accumulator
     fn asm_txa(&mut self) {
         let x_register = self.x_register;
-        self.set_sign_bit(x_register);
+        self.set_sign(x_register);
         self.set_zero(x_register);
         self.accumulator = x_register;
     }
@@ -529,7 +546,7 @@ impl CPU {
     // AA - Transfers the accumulator into index X
     fn asm_tax(&mut self) {
         let accumulator = self.accumulator;
-        self.set_sign_bit(accumulator);
+        self.set_sign(accumulator);
         self.set_zero(accumulator);
         self.x_register = accumulator;
     }
@@ -590,7 +607,7 @@ impl CPU {
     // C8 - Increments Y register by 1
     fn asm_iny(&mut self) {
         let y_register: u8 = self.y_register.wrapping_add(1);
-        self.set_sign_bit(y_register);
+        self.set_sign(y_register);
         self.set_zero_bit(y_register == 0);
         self.y_register = y_register;
     }
@@ -604,7 +621,7 @@ impl CPU {
     // CA - Decrements X register by 1
     fn asm_dex(&mut self) {
         let x_register: u8 = self.x_register.wrapping_sub(1);
-        self.set_sign_bit(x_register);
+        self.set_sign(x_register);
         self.set_zero_bit(x_register == 0);
         self.x_register = x_register;
     }
@@ -615,7 +632,7 @@ impl CPU {
         let memory_value: u8 = self.memory.get_8_bit_value(memory_location);
         let new_memory_value = memory_value.wrapping_sub(1);
         self.memory.set_8_bit_value(memory_location, new_memory_value);
-        self.set_sign_bit(new_memory_value);
+        self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
     }
 
@@ -645,7 +662,7 @@ impl CPU {
     // E8 - Increments X register by 1
     fn asm_inx(&mut self) {
         let x_register: u8 = self.x_register.wrapping_add(1);
-        self.set_sign_bit(x_register);
+        self.set_sign(x_register);
         self.set_zero_bit(x_register == 0);
         self.x_register = x_register;
     }
@@ -661,6 +678,14 @@ impl CPU {
         if !self.is_zero_set() { return; }
 
         self.branch(instruction_data[0]);
+    }
+
+    // F9 - Subtract a post incremented address value from another address
+    fn asm_sbc_post_indexed(&mut self, instruction_data: &[u8]) {
+        let address = self.get_post_indexed_indirect_address(instruction_data[0]);
+        let memory_value = self.memory.get_8_bit_value(address);
+
+        self.sbc(memory_value);
     }
 
 }
@@ -1601,6 +1626,41 @@ mod tests {
         assert_eq!(cpu.accumulator, 0x81);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_sbc() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x02;
+        cpu.set_carry_bit(false);
+        cpu.sbc(0x01);
+
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_overflow_set(), false);
+
+        cpu.accumulator = 0x01;
+        cpu.set_carry_bit(true);
+        cpu.sbc(0x02);
+
+        assert_eq!(cpu.accumulator, 0xFF);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_overflow_set(), false);
+
+        cpu.accumulator = 0x80;
+        cpu.set_carry_bit(true);
+        cpu.sbc(0x01);
+
+        assert_eq!(cpu.accumulator, 0x7F);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_overflow_set(), true);
     }
 
     #[test]
