@@ -108,7 +108,8 @@ impl CPU {
 
         // TODO handle Immediate more gracefully
         let mut source_address = 0;
-        if instruction.addressing_mode != AddressingMode::Immediate {
+        if instruction.addressing_mode != AddressingMode::Immediate
+            && instruction.addressing_mode != AddressingMode::Relative {
             source_address = self.get_source_address(instruction, instruction_data);
             match instruction.name.as_ref() {
                 "STA" => {
@@ -121,7 +122,8 @@ impl CPU {
 
         let source_value;
         // Instruction we read in wasn't in the previous groups. So we want the address's value
-        if instruction.addressing_mode == AddressingMode::Immediate {
+        if instruction.addressing_mode == AddressingMode::Immediate
+            || instruction.addressing_mode == AddressingMode::Relative {
             source_value = instruction_data[0];
         } else {
             source_value = self.memory.get_8_bit_value(source_address);
@@ -129,6 +131,8 @@ impl CPU {
         match instruction.name.as_ref() {
             "SBC" => { self.sbc(source_value); return; },
             "LDA" => { self.lda(source_value); return; },
+            "LDX" => { self.ldx(source_value); return; },
+            "BPL" => { self.ldx(source_value); return; },
             _ => println!("Instruction type {} not yet converted!", instruction.name)
         }
 
@@ -147,7 +151,6 @@ impl CPU {
             0x05 => { self.asm_ora_zero_page(instruction_data) }
             0x09 => { self.asm_ora_immediate(instruction_data) }
             0x0D => { self.asm_ora_absolute(instruction_data) }
-            0x10 => { self.asm_bpl(instruction_data) }
             0x20 => { self.asm_jsr(instruction_data) }
             0x29 => { self.asm_and_immediate(instruction_data) }
             0x2A => { self.asm_rol_accumulator(); }
@@ -160,11 +163,8 @@ impl CPU {
             0x8E => { self.asm_stx_absolute(instruction_data); }
             0x90 => { self.asm_bcc(instruction_data); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
-            0xA2 => { self.asm_ldx_immediate(instruction_data); }
             0xAC => { self.asm_ldy_absolute(instruction_data); }
-            0xAE => { self.asm_ldx_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
-            0xBE => { self.asm_ldx_post_indexed(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
             0xCE => { self.asm_dec_absolute(instruction_data); }
