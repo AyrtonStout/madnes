@@ -39,7 +39,6 @@ impl CPU {
         let memory_start = self.program_counter;
         let opcode: u8 = self.memory.get_8_bit_value(memory_start);
         let instruction = get_instruction(opcode);
-        let addressing_mode = instruction.addressing_mode;
         let num_bytes: u8 = instruction.num_bytes;
 
         let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16 - 1);
@@ -65,22 +64,22 @@ impl CPU {
         }
     }
 
-    fn get_source_data(&mut self, instruction: InstructionType, instruction_data: &[u8]) -> u8 {
+    fn get_source_address(&mut self, instruction: InstructionType, instruction_data: &[u8]) -> u16 {
         match instruction.addressing_mode {
-            AddressingMode::Immediate => instruction_data[0],
-            AddressingMode::Absolute => self.read_absolute_value(instruction_data),
-            AddressingMode::ZeroPageAbsolute => self.read_absolute_value(&[instruction_data[0], 0x00]),
+            AddressingMode::Immediate => panic!("Makes no sense! {}", instruction.name),
+            AddressingMode::Absolute => CPU::convert_to_address(instruction_data),
+            AddressingMode::ZeroPageAbsolute => CPU::convert_to_address(&[instruction_data[0], 0x00]),
             AddressingMode::Implied => panic!("There is no data for implied instructions!"),
             AddressingMode::Accumulator => panic!("There is no data for accumulator instructions!"),
-            AddressingMode::AbsoluteX => self.read_absolute_x_value(instruction_data),
-            AddressingMode::AbsoluteY => self.read_absolute_y_value(instruction_data),
-            AddressingMode::ZeroPageAbsoluteX => self.read_absolute_x_value(&[instruction_data[0], 0x00]),
-            AddressingMode::ZeroPageAbsoluteY => self.read_absolute_y_value(&[instruction_data[0], 0x00]),
-            AddressingMode::PreIndexedIndirect => self.read_pre_indexed_value(instruction_data),
-            AddressingMode::PostIndexedIndirect => self.read_post_indexed_value(instruction_data),
+            AddressingMode::AbsoluteX => self.compute_absolute_x_address(instruction_data),
+            AddressingMode::AbsoluteY => self.compute_absolute_y_address(instruction_data),
+            AddressingMode::ZeroPageAbsoluteX => self.compute_absolute_x_address(&[instruction_data[0], 0x00]),
+            AddressingMode::ZeroPageAbsoluteY => self.compute_absolute_y_address(&[instruction_data[0], 0x00]),
+            AddressingMode::PreIndexedIndirect => self.get_pre_indexed_indirect_address(instruction_data[0]),
+            AddressingMode::PostIndexedIndirect => self.get_post_indexed_indirect_address(instruction_data[0]),
             AddressingMode::Relative => panic!("Not done!"),
             AddressingMode::Indirect => panic!("Indirect returns a 16 bit integer!"),
-            AddressingMode::Empty => panic!("AddressingMode not set for this instruction!")
+            AddressingMode::Empty => panic!("AddressingMode not set for {}!", instruction.name)
         }
     }
 
@@ -107,9 +106,29 @@ impl CPU {
             return;
         }
 
-        let source = self.get_source_data(instruction, instruction_data);
+        // TODO handle Immediate more gracefully
+        let mut source_address = 0;
+        if instruction.addressing_mode != AddressingMode::Immediate {
+            source_address = self.get_source_address(instruction, instruction_data);
+            match instruction.name.as_ref() {
+                "STA" => {
+                    self.sta(source_address);
+                    return;
+                },
+                _ => ()
+            }
+        }
+
+        let source_value;
+        // Instruction we read in wasn't in the previous groups. So we want the address's value
+        if instruction.addressing_mode == AddressingMode::Immediate {
+            source_value = instruction_data[0];
+        } else {
+            source_value = self.memory.get_8_bit_value(source_address);
+        }
         match instruction.name.as_ref() {
-            "SBC" => { self.sbc(source); return; },
+            "SBC" => { self.sbc(source_value); return; },
+            "LDA" => { self.lda(source_value); return; },
             _ => println!("Instruction type {} not yet converted!", instruction.name)
         }
 
@@ -137,23 +156,14 @@ impl CPU {
             0x3D => { self.asm_and_absolute_x(instruction_data); }
             0x4A => { self.asm_lsr_accumulator(); }
             0x4C => { self.asm_jmp_absolute(instruction_data); }
-            0x85 => { self.asm_sta_zero_page(instruction_data); }
             0x86 => { self.asm_stx_zero_page(instruction_data); }
-            0x8D => { self.asm_sta_absolute(instruction_data); }
             0x8E => { self.asm_stx_absolute(instruction_data); }
             0x90 => { self.asm_bcc(instruction_data); }
-            0x91 => { self.asm_sta_post_indexed(instruction_data); }
-            0x99 => { self.asm_sta_absolute_y(instruction_data); }
-            0x9D => { self.asm_sta_absolute_x(instruction_data); }
             0xA0 => { self.asm_ldy_immediate(instruction_data); }
             0xA2 => { self.asm_ldx_immediate(instruction_data); }
-            0xA9 => { self.asm_lda_immediate(instruction_data); }
             0xAC => { self.asm_ldy_absolute(instruction_data); }
-            0xAD => { self.asm_lda_absolute(instruction_data); }
             0xAE => { self.asm_ldx_absolute(instruction_data); }
             0xB0 => { self.asm_bcs(instruction_data); }
-            0xB1 => { self.asm_lda_post_indexed(instruction_data); }
-            0xBD => { self.asm_lda_absolute_x(instruction_data); }
             0xBE => { self.asm_ldx_post_indexed(instruction_data); }
             0xC0 => { self.asm_cpy_immediate(instruction_data); }
             0xC9 => { self.asm_cmp_immediate(instruction_data); }
@@ -305,31 +315,6 @@ impl CPU {
         return self.memory.get_8_bit_value(address);
     }
 
-    fn read_absolute_x_value(&mut self, instruction_data: &[u8]) -> u8 {
-        let computed_address = self.compute_absolute_x_address(instruction_data);
-        return self.memory.get_8_bit_value(computed_address);
-    }
-
-    fn read_absolute_y_value(&mut self, instruction_data: &[u8]) -> u8 {
-        let computed_address = self.compute_absolute_y_address(instruction_data);
-        return self.memory.get_8_bit_value(computed_address);
-    }
-
-    fn read_pre_indexed_value(&mut self, instruction_data: &[u8]) -> u8 {
-        let computed_address = self.get_pre_indexed_indirect_address(instruction_data[0]);
-        return self.memory.get_8_bit_value(computed_address);
-    }
-
-    fn read_post_indexed_value(&mut self, instruction_data: &[u8]) -> u8 {
-        let computed_address = self.get_post_indexed_indirect_address(instruction_data[0]);
-        return self.memory.get_8_bit_value(computed_address);
-    }
-
-    fn read_indirect_value(&mut self, instruction_data: &[u8]) -> u16 {
-        let address = CPU::convert_to_address(instruction_data);
-        return self.memory.get_16_bit_value(address);
-    }
-
     // Compare literal value with value stored in accumulator
     fn compare(&mut self, cpu_data: u8, src: u8) {
         self.set_carry_bit(cpu_data >= src);
@@ -344,6 +329,10 @@ impl CPU {
         self.set_sign(result);
         self.set_zero(result);
         self.accumulator = result;
+    }
+
+    fn sta(&mut self, source: u16) {
+        self.memory.set_8_bit_value(source, self.accumulator);
     }
 
     fn and_with_accumulator(&mut self, source: u8) {

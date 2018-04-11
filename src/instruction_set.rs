@@ -156,11 +156,11 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 7F
 
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 80
-    InstructionType { name: "STA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // 81 (Indirect, X)
+    InstructionType { name: "STA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::PreIndexedIndirect }, // 81 (Indirect, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 82
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 83
     InstructionType { name: "STY", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // 84 (Zero Page)
-    InstructionType { name: "STA", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // 85 (Zero Page)
+    InstructionType { name: "STA", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::ZeroPageAbsolute }, // 85 (Zero Page)
     InstructionType { name: "STX", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // 86 (Zero Page)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 87
     InstructionType { name: "DEY", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 88
@@ -168,37 +168,37 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "TXA", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 8A
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 8B
     InstructionType { name: "STY", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Absolute }, // 8C (Absolute)
-    InstructionType { name: "STA", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Absolute }, // 8D (Absolute)
+    InstructionType { name: "STA", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::AbsoluteX }, // 8D (Absolute)
     InstructionType { name: "STX", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Absolute }, // 8E (Absolute)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 8F
 
     InstructionType { name: "BCC", num_bytes: 2, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // 90
-    InstructionType { name: "STA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // 91 (Indirect, Y)
+    InstructionType { name: "STA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::PostIndexedIndirect }, // 91 (Indirect, Y)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 92
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 93
     InstructionType { name: "STY", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // 94 (Zero Page, X)
-    InstructionType { name: "STA", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // 95 (Zero Page, X)
+    InstructionType { name: "STA", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // 95 (Zero Page, X)
     InstructionType { name: "STX", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // 96 (Zero Page, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 97
     InstructionType { name: "TYA", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 98
-    InstructionType { name: "STA", num_bytes: 3, num_cycles: 5, addressing_mode: AddressingMode::Empty }, // 99 (Absolute, Y)
+    InstructionType { name: "STA", num_bytes: 3, num_cycles: 5, addressing_mode: AddressingMode::AbsoluteY }, // 99 (Absolute, Y)
     InstructionType { name: "TXS", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 9A
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9B
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9C
-    InstructionType { name: "STA", num_bytes: 3, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // 9D (Absolute, X)
+    InstructionType { name: "STA", num_bytes: 3, num_cycles: 2/* * */, addressing_mode: AddressingMode::AbsoluteX }, // 9D (Absolute, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9E
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 9F
 
     InstructionType { name: "LDY", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // A0 (Immediate)
-    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // A1 (Indirect, X)
+    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::PreIndexedIndirect }, // A1 (Indirect, X)
     InstructionType { name: "LDX", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // A2 (Immediate)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // A3
     InstructionType { name: "LDY", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // A4 (Zero Page)
-    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // A5 (Zero Page)
+    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::ZeroPageAbsolute }, // A5 (Zero Page)
     InstructionType { name: "LDX", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // A6 (Zero Page)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // A7
     InstructionType { name: "TAY", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // A8
-    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // A9 (Immediate)
+    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Immediate }, // A9 (Immediate)
     InstructionType { name: "TAX", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // AA
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // AB
     InstructionType { name: "LDY", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Absolute }, // AC (Absolute)
@@ -207,19 +207,19 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // AF
 
     InstructionType { name: "BCS", num_bytes: 2, num_cycles: 2/* * */, addressing_mode: AddressingMode::Empty }, // B0
-    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 5/* * */, addressing_mode: AddressingMode::Empty }, // B1 (Indirect, Y)
+    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 5/* * */, addressing_mode: AddressingMode::PostIndexedIndirect }, // B1 (Indirect, Y)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // B2
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // B3
     InstructionType { name: "LDY", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // B4 (Zero Page, X)
-    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // B5 (Zero Page, X)
+    InstructionType { name: "LDA", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // B5 (Zero Page, X)
     InstructionType { name: "LDX", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // B6 (Zero Page, Y)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // B7
     InstructionType { name: "CLV", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // B8
-    InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // B9 (Absolute, Y)
+    InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::ZeroPageAbsoluteY }, // B9 (Absolute, Y)
     InstructionType { name: "TSX", num_bytes: 2, num_cycles: 5/* * */, addressing_mode: AddressingMode::Implied }, // BA
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // BB
     InstructionType { name: "LDY", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // BC (Absolute, X)
-    InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // BD (Absolute, X)
+    InstructionType { name: "LDA", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::AbsoluteX }, // BD (Absolute, X)
     InstructionType { name: "LDX", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // BE (Absolute, Y)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // BF
 
