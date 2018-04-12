@@ -110,6 +110,7 @@ impl CPU {
             match instruction.name.as_ref() {
                 "LSR" => self.asm_lsr_accumulator(),
                 "ROL" => self.asm_rol_accumulator(),
+                "ROR" => self.asm_ror_accumulator(),
                 _ => println!("Accumulator instruction {} not implemented!", instruction.name)
             }
             return;
@@ -121,13 +122,14 @@ impl CPU {
             && instruction.addressing_mode != AddressingMode::Relative {
             source_address = self.get_source_address(instruction, instruction_data);
             match instruction.name.as_ref() {
-                "STA" => { self.sta(source_address); return; },
+                "STA" => { self.asm_sta(source_address); return; },
                 "STY" => { self.asm_sty(source_address); return; },
                 "STX" => { self.asm_stx(source_address); return; },
                 "JSR" => { self.asm_jsr(source_address); return; },
                 "JMP" => { self.asm_jmp(source_address); return; },
-                "INC" => { self.inc(source_address); return; },
-                "DEC" => { self.dec(source_address); return; },
+                "INC" => { self.asm_inc(source_address); return; },
+                "DEC" => { self.asm_dec(source_address); return; },
+                "ROR" => { self.asm_ror_memory(source_address); return; },
                 _ => ()
             }
         }
@@ -157,7 +159,7 @@ impl CPU {
             "AND" => { self.asm_and(source_value); },
             "BIT" => { self.asm_bit(source_value); },
             "EOR" => { self.asm_eor(source_value); },
-            _ => println!("Found unimplemented instruction! Name: {} Opcode: {}", instruction.name, opcode)
+            _ => println!("Found unimplemented instruction! Name: {} Opcode: {:X}", instruction.name, opcode)
         }
 
         /*
@@ -321,7 +323,7 @@ impl CPU {
     }
 
     // Store the accumulator at a memory location
-    fn sta(&mut self, source: u16) {
+    fn asm_sta(&mut self, source: u16) {
         self.memory.set_8_bit_value(source, self.accumulator);
     }
 
@@ -354,7 +356,7 @@ impl CPU {
     }
 
     // Increment the value stored at a memory location
-    fn inc(&mut self, address: u16) {
+    fn asm_inc(&mut self, address: u16) {
         let memory_value = self.memory.get_8_bit_value(address);
         let new_memory_value = memory_value.wrapping_add(1);
         self.memory.set_8_bit_value(address, new_memory_value);
@@ -398,7 +400,7 @@ impl CPU {
         self.program_counter = source;
     }
 
-    // Bitshift accumulator to the left by 1
+    // Bitshift accumulator to the left by 1, making the LSB the value of the current carry
     fn asm_rol_accumulator(&mut self) {
         let accumulator = self.accumulator;
         let shifted_accumulator = self.accumulator << 1;
@@ -407,6 +409,28 @@ impl CPU {
         self.set_sign(final_accumulator);
         self.set_carry_bit((accumulator & 0x80) == 0x80);
         self.accumulator = final_accumulator;
+    }
+
+    fn asm_ror(&mut self, source: u8) -> u8 {
+        let shifted_source = source >> 1;
+        let result = if self.is_carry_set() { shifted_source | 0x80 } else { shifted_source };
+        self.set_zero(result);
+        self.set_sign(result);
+        self.set_carry_bit((source & 0x01) == 0x01);
+        return result;
+    }
+
+    // Bitshift accumulator to the right by 1, making the MSB the value of the current carry
+    fn asm_ror_accumulator(&mut self) {
+        let accumulator = self.accumulator;
+        self.accumulator = self.asm_ror(accumulator);
+    }
+
+    // Bitshift a memory location to the right by 1, making the MSB the value of the current carry
+    fn asm_ror_memory(&mut self, address: u16) {
+        let memory_value = self.memory.get_8_bit_value(address);
+        let new_value = self.asm_ror(memory_value);
+        self.memory.set_8_bit_value(address, new_value);
     }
 
     // Sets various flags based off the current accumulator and memory address
@@ -557,7 +581,7 @@ impl CPU {
     }
 
     // Decrements the value at a memory location by 1
-    fn dec(&mut self, address: u16) {
+    fn asm_dec(&mut self, address: u16) {
         let memory_value: u8 = self.memory.get_8_bit_value(address);
         let new_memory_value = memory_value.wrapping_sub(1);
         self.memory.set_8_bit_value(address, new_memory_value);
@@ -808,7 +832,7 @@ mod tests {
         let mut cpu: CPU = CPU::new();
 
         cpu.accumulator = 0x42;
-        cpu.sta(0x1022);
+        cpu.asm_sta(0x1022);
 
         let actual: u8 = cpu.memory.get_8_bit_value(0x1022);
         assert_eq!(0x42, actual);
@@ -987,19 +1011,19 @@ mod tests {
     fn test_inc() {
         let mut cpu: CPU = CPU::new();
         cpu.memory.set_8_bit_value(0x1020, 0x50);
-        cpu.inc(0x1020);
+        cpu.asm_inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x51);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
 
         cpu.memory.set_8_bit_value(0x1020, 0x7F);
-        cpu.inc(0x1020);
+        cpu.asm_inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x80);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x1020, 0xFF);
-        cpu.inc(0x1020);
+        cpu.asm_inc(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
         assert_eq!(cpu.is_zero_set(), true);
         assert_eq!(cpu.is_negative_set(), false);
@@ -1009,19 +1033,19 @@ mod tests {
     fn test_dec() {
         let mut cpu: CPU = CPU::new();
         cpu.memory.set_8_bit_value(0x1020, 0x50);
-        cpu.dec(0x1020);
+        cpu.asm_dec(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x4F);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
 
         cpu.memory.set_8_bit_value(0x1020, 0x81);
-        cpu.dec(0x1020);
+        cpu.asm_dec(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x80);
         assert_eq!(cpu.is_zero_set(), false);
         assert_eq!(cpu.is_negative_set(), true);
 
         cpu.memory.set_8_bit_value(0x1020, 0x01);
-        cpu.dec(0x1020);
+        cpu.asm_dec(0x1020);
         assert_eq!(cpu.memory.get_8_bit_value(0x1020), 0x00);
         assert_eq!(cpu.is_zero_set(), true);
         assert_eq!(cpu.is_negative_set(), false);
@@ -1171,6 +1195,66 @@ mod tests {
         cpu.asm_rol_accumulator();
 
         assert_eq!(cpu.accumulator, 0b00000000);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_ror_accumulator() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0b10010001;
+        cpu.asm_ror_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b01001000);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b01000010;
+        cpu.set_carry_bit(true);
+        cpu.asm_ror_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b10100001);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b00000000;
+        cpu.set_carry_bit(false);
+        cpu.asm_ror_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b00000000);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_ror_memory() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x2500, 0b10010001);
+        cpu.asm_ror_memory(0x2500);
+
+        assert_eq!(cpu.memory.get_8_bit_value(0x2500), 0b01001000);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.memory.set_8_bit_value(0x2500, 0b01000010);
+        cpu.set_carry_bit(true);
+        cpu.asm_ror_memory(0x2500);
+
+        assert_eq!(cpu.memory.get_8_bit_value(0x2500), 0b10100001);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.memory.set_8_bit_value(0x2500, 0b00000000);
+        cpu.set_carry_bit(false);
+        cpu.asm_ror_memory(0x2500);
+
+        assert_eq!(cpu.memory.get_8_bit_value(0x2500), 0b00000000);
         assert_eq!(cpu.is_carry_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), true);
