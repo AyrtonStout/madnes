@@ -108,6 +108,7 @@ impl CPU {
 
         if instruction.addressing_mode == AddressingMode::Accumulator {
             match instruction.name.as_ref() {
+                "ASL" => self.asm_asl_accumulator(),
                 "LSR" => self.asm_lsr_accumulator(),
                 "ROL" => self.asm_rol_accumulator(),
                 "ROR" => self.asm_ror_accumulator(),
@@ -464,11 +465,20 @@ impl CPU {
     fn asm_lsr_accumulator(&mut self) {
         let accumulator = self.accumulator;
         let shifted_accumulator = self.accumulator >> 1;
-        let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x80 } else { shifted_accumulator }; // Why Rust no have ternary
-        self.set_zero(final_accumulator);
-        self.set_sign(final_accumulator);
+        self.set_zero(shifted_accumulator);
+        self.set_sign(shifted_accumulator);
         self.set_carry_bit((accumulator & 0x01) == 0x01);
-        self.accumulator = final_accumulator;
+        self.accumulator = shifted_accumulator;
+    }
+
+    // Bitshift accumulator to the right by 1
+    fn asm_asl_accumulator(&mut self) {
+        let accumulator = self.accumulator;
+        let shifted_accumulator = self.accumulator << 1;
+        self.set_zero(shifted_accumulator);
+        self.set_sign(shifted_accumulator);
+        self.set_carry_bit((accumulator & 0x80) == 0x80);
+        self.accumulator = shifted_accumulator;
     }
 
     // Start program execution at a value stored at a location in memory
@@ -1143,26 +1153,44 @@ mod tests {
     #[test]
     fn test_lsr_accumulator() {
         let mut cpu: CPU = CPU::new();
-        cpu.accumulator = 0b10010001;
+        cpu.accumulator = 0b10010000;
         cpu.asm_lsr_accumulator();
 
         assert_eq!(cpu.accumulator, 0b01001000);
-        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_carry_set(), false);
         assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), false);
 
-        cpu.accumulator = 0b01000000;
-        cpu.set_carry_bit(true);
+        cpu.accumulator = 0b00000001;
         cpu.asm_lsr_accumulator();
 
-        assert_eq!(cpu.accumulator, 0b10100000);
+        assert_eq!(cpu.accumulator, 0b00000000);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_asl_accumulator() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0b00010001;
+        cpu.asm_asl_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b00100010);
         assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0b11000000;
+        cpu.asm_asl_accumulator();
+
+        assert_eq!(cpu.accumulator, 0b10000000);
+        assert_eq!(cpu.is_carry_set(), true);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
 
-        cpu.accumulator = 0b00000001;
-        cpu.set_carry_bit(false);
-        cpu.asm_lsr_accumulator();
+        cpu.accumulator = 0b10000000;
+        cpu.asm_asl_accumulator();
 
         assert_eq!(cpu.accumulator, 0b00000000);
         assert_eq!(cpu.is_carry_set(), true);

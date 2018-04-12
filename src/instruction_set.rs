@@ -25,11 +25,11 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 3
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 4
     InstructionType { name: "ORA", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::ZeroPageAbsolute }, // 5 (Zero page)
-    InstructionType { name: "ASL", num_bytes: 2, num_cycles: 5, addressing_mode: AddressingMode::Empty }, // 6 (Zero page)
+    InstructionType { name: "ASL", num_bytes: 2, num_cycles: 5, addressing_mode: AddressingMode::ZeroPageAbsolute }, // 6 (Zero page)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 7 [Unofficial]
     InstructionType { name: "PHP", num_bytes: 1, num_cycles: 3, addressing_mode: AddressingMode::Implied }, // 8
     InstructionType { name: "ORA", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Immediate }, // 9 (Immediate)
-    InstructionType { name: "ASL", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // A (Accumulator)
+    InstructionType { name: "ASL", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Accumulator }, // A (Accumulator)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // B (Immediate)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // C (Immediate)
     InstructionType { name: "ORA", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Absolute }, // D (Absolute)
@@ -42,7 +42,7 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 13
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 14
     InstructionType { name: "ORA", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // 15 (Zero Page, X)
-    InstructionType { name: "ASL", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // 16 (Zero Page, X)
+    InstructionType { name: "ASL", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // 16 (Zero Page, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 17
     InstructionType { name: "CLC", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 18
     InstructionType { name: "ORA", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::AbsoluteY }, // 19 (Absolute, Y)
@@ -50,7 +50,7 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 1B
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 1C
     InstructionType { name: "ORA", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::AbsoluteX }, // 1D (Absolute, X)
-    InstructionType { name: "ASL", num_bytes: 3, num_cycles: 7, addressing_mode: AddressingMode::Empty }, // 1E (Absolute, X)
+    InstructionType { name: "ASL", num_bytes: 3, num_cycles: 7, addressing_mode: AddressingMode::AbsoluteX }, // 1E (Absolute, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 1F
 
     InstructionType { name: "JSR", num_bytes: 3, num_cycles: 6, addressing_mode: AddressingMode::Absolute }, // 20
