@@ -88,15 +88,15 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 3F
 
     InstructionType { name: "RTI", num_bytes: 3, num_cycles: 4, addressing_mode: AddressingMode::Implied }, // 40
-    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::Empty }, // 41 (Indirect, X)
+    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::PreIndexedIndirect }, // 41 (Indirect, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 42
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 43
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 44
-    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::Empty }, // 45 (Zero Page)
+    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 3, addressing_mode: AddressingMode::ZeroPageAbsolute }, // 45 (Zero Page)
     InstructionType { name: "LSR", num_bytes: 2, num_cycles: 5, addressing_mode: AddressingMode::ZeroPageAbsolute }, // 46 (Zero Page)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 47
     InstructionType { name: "PHA", num_bytes: 1, num_cycles: 3, addressing_mode: AddressingMode::Implied }, // 48
-    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Empty }, // 49 Immediate
+    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 2, addressing_mode: AddressingMode::Immediate }, // 49 Immediate
     InstructionType { name: "LSR", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Accumulator }, // 4A Accumulator
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 4B
     InstructionType { name: "JMP", num_bytes: 3, num_cycles: 3, addressing_mode: AddressingMode::Absolute }, // 4C (Absolute)
@@ -105,19 +105,19 @@ static INSTRUCTIONS: &'static [InstructionType] = &[
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 4F
 
     InstructionType { name: "BVC", num_bytes: 2, num_cycles: 2/* * */, addressing_mode: AddressingMode::Relative }, // 50
-    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 5/* * */, addressing_mode: AddressingMode::Empty }, // 51 (Indirect, Y)
+    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 5/* * */, addressing_mode: AddressingMode::PostIndexedIndirect }, // 51 (Indirect, Y)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 52
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 53
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 54
-    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::Empty }, // 55 (Zero Page, X)
+    InstructionType { name: "EOR", num_bytes: 2, num_cycles: 4, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // 55 (Zero Page, X)
     InstructionType { name: "LSR", num_bytes: 2, num_cycles: 6, addressing_mode: AddressingMode::ZeroPageAbsoluteX }, // 56 (Zero Page, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 57
     InstructionType { name: "CLI", num_bytes: 1, num_cycles: 2, addressing_mode: AddressingMode::Implied }, // 58
-    InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // 59 (Absolute, X)
+    InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::AbsoluteX }, // 59 (Absolute, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 5A
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 5B
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 5C
-    InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::Empty }, // 5D (Absolute, X)
+    InstructionType { name: "EOR", num_bytes: 3, num_cycles: 4/* * */, addressing_mode: AddressingMode::AbsoluteX }, // 5D (Absolute, X)
     InstructionType { name: "LSR", num_bytes: 3, num_cycles: 7, addressing_mode: AddressingMode::AbsoluteX }, // 5E (Absolute, X)
     InstructionType { name: "---", num_bytes: 0, num_cycles: 0, addressing_mode: AddressingMode::Empty }, // 5F
 

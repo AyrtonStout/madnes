@@ -115,22 +115,21 @@ impl CPU {
             return;
         }
 
-        // TODO handle Immediate more gracefully
+        // TODO handle Immediate and Relative (which is basically Immediate) more gracefully
         let mut source_address = 0;
         if instruction.addressing_mode != AddressingMode::Immediate
             && instruction.addressing_mode != AddressingMode::Relative {
             source_address = self.get_source_address(instruction, instruction_data);
             match instruction.name.as_ref() {
-                "STA" => { self.sta(source_address); },
-                "STY" => { self.asm_sty(source_address); },
-                "STX" => { self.asm_stx(source_address); },
-                "JSR" => { self.asm_jsr(source_address); },
-                "JMP" => { self.asm_jmp(source_address); },
-                "INC" => { self.inc(source_address); },
-                "DEC" => { self.dec(source_address); },
+                "STA" => { self.sta(source_address); return; },
+                "STY" => { self.asm_sty(source_address); return; },
+                "STX" => { self.asm_stx(source_address); return; },
+                "JSR" => { self.asm_jsr(source_address); return; },
+                "JMP" => { self.asm_jmp(source_address); return; },
+                "INC" => { self.inc(source_address); return; },
+                "DEC" => { self.dec(source_address); return; },
                 _ => ()
             }
-            return;
         }
 
         let source_value;
@@ -157,6 +156,7 @@ impl CPU {
             "ORA" => { self.asm_ora(source_value); },
             "AND" => { self.asm_and(source_value); },
             "BIT" => { self.asm_bit(source_value); },
+            "EOR" => { self.asm_eor(source_value); },
             _ => println!("Found unimplemented instruction! Name: {} Opcode: {}", instruction.name, opcode)
         }
 
@@ -415,6 +415,14 @@ impl CPU {
         self.set_sign(source);
         self.set_overflow_bit((source & 0x40) == 0x40);
         self.set_zero(source & accumulator);
+    }
+
+    // Exclusive OR with a memory location and the accumulator
+    fn asm_eor(&mut self, source: u8) {
+        let result = self.accumulator ^ source;
+        self.set_sign(result);
+        self.set_zero(result);
+        self.accumulator = result;
     }
 
     // Sets carry flag as being set
@@ -1184,6 +1192,29 @@ mod tests {
 
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_overflow_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_eor() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x42;
+        cpu.asm_eor(0x22);
+        assert_eq!(cpu.accumulator, 0x60);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x80;
+        cpu.asm_eor(0x02);
+        assert_eq!(cpu.accumulator, 0x82);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+
+        cpu.accumulator = 0x80;
+        cpu.asm_eor(0x80);
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
         assert_eq!(cpu.is_zero_set(), true);
     }
 
