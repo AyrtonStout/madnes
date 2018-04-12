@@ -78,7 +78,7 @@ impl CPU {
             AddressingMode::PreIndexedIndirect => self.get_pre_indexed_indirect_address(instruction_data[0]),
             AddressingMode::PostIndexedIndirect => self.get_post_indexed_indirect_address(instruction_data[0]),
             AddressingMode::Relative => panic!("Also makes no sense!"),
-            AddressingMode::Indirect => panic!("Not done!"),
+            AddressingMode::Indirect => panic!("Not done! {}", instruction.name),
             AddressingMode::Empty => panic!("AddressingMode not set for {}!", instruction.name)
         }
     }
@@ -97,6 +97,7 @@ impl CPU {
                 "TXA" => self.asm_txa(),
                 "TXS" => self.asm_txs(),
                 "TAX" => self.asm_tax(),
+                "TAY" => self.asm_tay(),
                 "INY" => self.asm_iny(),
                 "DEX" => self.asm_dex(),
                 "CLD" => self.asm_cld(),
@@ -553,6 +554,14 @@ impl CPU {
         self.set_sign(accumulator);
         self.set_zero(accumulator);
         self.x_register = accumulator;
+    }
+
+    // Transfers the accumulator into index Y
+    fn asm_tay(&mut self) {
+        let accumulator = self.accumulator;
+        self.set_sign(accumulator);
+        self.set_zero(accumulator);
+        self.y_register = accumulator;
     }
 
     // Branch when carry is set
@@ -1117,6 +1126,27 @@ mod tests {
         cpu.accumulator = 0x00;
         cpu.asm_tax();
         assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_tay() {
+        let mut cpu: CPU = CPU::new();
+        cpu.accumulator = 0x21;
+        cpu.asm_tay();
+
+        assert_eq!(cpu.y_register, 0x21);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.accumulator = 0x91;
+        cpu.asm_tay();
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.accumulator = 0x00;
+        cpu.asm_tay();
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
     }
 
     #[test]
