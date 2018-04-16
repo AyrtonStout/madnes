@@ -95,6 +95,7 @@ impl CPU {
                 "SEI" => self.asm_sei(),
                 "DEY" => self.asm_dey(),
                 "TXA" => self.asm_txa(),
+                "TYA" => self.asm_tya(),
                 "TXS" => self.asm_txs(),
                 "TAX" => self.asm_tax(),
                 "TAY" => self.asm_tay(),
@@ -102,7 +103,7 @@ impl CPU {
                 "DEX" => self.asm_dex(),
                 "CLD" => self.asm_cld(),
                 "INX" => self.asm_inx(),
-                _ => println!("Implied instruction {} not implemented!", instruction.name)
+                _ => panic!("Implied instruction {} not implemented!", instruction.name)
             }
             return;
         }
@@ -113,7 +114,7 @@ impl CPU {
                 "LSR" => self.asm_lsr_accumulator(),
                 "ROL" => self.asm_rol_accumulator(),
                 "ROR" => self.asm_ror_accumulator(),
-                _ => println!("Accumulator instruction {} not implemented!", instruction.name)
+                _ => panic!("Accumulator instruction {} not implemented!", instruction.name)
             }
             return;
         }
@@ -162,7 +163,7 @@ impl CPU {
             "AND" => { self.asm_and(source_value); },
             "BIT" => { self.asm_bit(source_value); },
             "EOR" => { self.asm_eor(source_value); },
-            _ => println!("Found unimplemented instruction! Name: {} Opcode: {:X}", instruction.name, opcode)
+            _ => panic!("Found unimplemented instruction! Name: {} Opcode: {:X}", instruction.name, opcode)
         }
 
         /*
@@ -542,6 +543,14 @@ impl CPU {
         self.set_sign(x_register);
         self.set_zero(x_register);
         self.accumulator = x_register;
+    }
+
+    // Puts the Y register into the accumulator
+    fn asm_tya(&mut self) {
+        let y_register = self.y_register;
+        self.set_sign(y_register);
+        self.set_zero(y_register);
+        self.accumulator = y_register;
     }
 
     fn asm_stx(&mut self, address: u16) {
@@ -1123,6 +1132,25 @@ mod tests {
 
         cpu.x_register = 0x00;
         cpu.asm_txa();
+        assert_eq!(cpu.is_zero_set(), true);
+    }
+
+    #[test]
+    fn test_tya() {
+        let mut cpu: CPU = CPU::new();
+        cpu.y_register = 0x21;
+        cpu.asm_tya();
+
+        assert_eq!(cpu.accumulator, 0x21);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.y_register = 0x91;
+        cpu.asm_tya();
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.y_register = 0x00;
+        cpu.asm_tya();
         assert_eq!(cpu.is_zero_set(), true);
     }
 
