@@ -78,7 +78,7 @@ impl CPU {
             AddressingMode::PreIndexedIndirect => self.get_pre_indexed_indirect_address(instruction_data[0]),
             AddressingMode::PostIndexedIndirect => self.get_post_indexed_indirect_address(instruction_data[0]),
             AddressingMode::Relative => panic!("Also makes no sense!"),
-            AddressingMode::Indirect => panic!("Not done! {}", instruction.name),
+            AddressingMode::Indirect => self.memory.get_16_bit_value(CPU::convert_to_address(instruction_data)),
             AddressingMode::Empty => panic!("AddressingMode not set for {}!", instruction.name)
         }
     }
@@ -145,6 +145,7 @@ impl CPU {
             source_value = self.memory.get_8_bit_value(source_address);
         }
         match instruction.name.as_ref() {
+            "ADC" => { self.asm_adc(source_value); },
             "SBC" => { self.asm_sbc(source_value); },
             "LDA" => { self.asm_lda(source_value); },
             "LDX" => { self.asm_ldx(source_value); },
@@ -364,6 +365,22 @@ impl CPU {
         self.memory.set_8_bit_value(address, new_memory_value);
         self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
+    }
+
+    // Subtraction (with carry)
+    // http://www.6502.org/tutorials/vflag.html#2.4
+    fn asm_adc(&mut self, source: u8) {
+        let carry: u16 = if self.is_carry_set() { 1 } else { 0 };
+        let accumulator: u16 = self.accumulator as u16;
+        let temp: u16 = accumulator + carry + source as u16;
+
+        self.set_sign(temp as u8);
+        self.set_zero(temp as u8);
+        self.set_overflow_bit(((accumulator ^ source as u16) & 0x80) == 0
+            && ((accumulator ^ temp) & 0x80) > 0);
+        self.set_carry_bit(temp > 0xFF);
+
+        self.accumulator = temp as u8;
     }
 
     // Subtraction (with carry)
@@ -1404,6 +1421,51 @@ mod tests {
         assert_eq!(cpu.accumulator, 0x81);
         assert_eq!(cpu.is_negative_set(), true);
         assert_eq!(cpu.is_zero_set(), false);
+    }
+
+    #[test]
+    fn test_adc() {
+        let mut cpu: CPU = CPU::new();
+
+        cpu.accumulator = 0x02;
+        cpu.set_carry_bit(false);
+        cpu.asm_adc(0x01);
+
+        assert_eq!(cpu.accumulator, 0x03);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_overflow_set(), false);
+
+        cpu.accumulator = 0x01;
+        cpu.set_carry_bit(false);
+        cpu.asm_adc(0xFF);
+
+        assert_eq!(cpu.accumulator, 0x00);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_overflow_set(), false);
+
+        cpu.accumulator = 0x7F;
+        cpu.set_carry_bit(false);
+        cpu.asm_adc(0x01);
+
+        assert_eq!(cpu.accumulator, 0x80);
+        assert_eq!(cpu.is_negative_set(), true);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_overflow_set(), true);
+
+        cpu.accumulator = 0x02;
+        cpu.set_carry_bit(true);
+        cpu.asm_adc(0x01);
+
+        assert_eq!(cpu.accumulator, 0x04);
+        assert_eq!(cpu.is_negative_set(), false);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_carry_set(), false);
+        assert_eq!(cpu.is_overflow_set(), false);
     }
 
     #[test]
