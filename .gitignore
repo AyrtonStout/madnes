@@ -14,6 +14,10 @@ Cargo.lock
 
 
 .idea/
+*.iml
 
 # Don't check in any ROMs... but they can live in the directory for ease of development
 *.nes
+
+# Don't check in SDL DLLs
+SDL2.dll
