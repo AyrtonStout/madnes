@@ -99,6 +99,7 @@ impl CPU {
                 "TXS" => self.asm_txs(),
                 "TAX" => self.asm_tax(),
                 "TAY" => self.asm_tay(),
+                "TSX" => self.asm_tsx(),
                 "INY" => self.asm_iny(),
                 "DEX" => self.asm_dex(),
                 "CLD" => self.asm_cld(),
@@ -588,6 +589,14 @@ impl CPU {
         self.set_sign(accumulator);
         self.set_zero(accumulator);
         self.y_register = accumulator;
+    }
+
+    // Transfers the stack pointer into index X
+    fn asm_tsx(&mut self) {
+        let stack_pointer = self.stack_pointer;
+        self.set_sign(stack_pointer);
+        self.set_zero(stack_pointer);
+        self.x_register = stack_pointer;
     }
 
     // Branch when carry is set
@@ -1190,6 +1199,27 @@ mod tests {
 
         cpu.accumulator = 0x00;
         cpu.asm_tay();
+        assert_eq!(cpu.is_zero_set(), true);
+        assert_eq!(cpu.is_negative_set(), false);
+    }
+
+    #[test]
+    fn test_tsx() {
+        let mut cpu: CPU = CPU::new();
+        cpu.stack_pointer = 0x21;
+        cpu.asm_tsx();
+
+        assert_eq!(cpu.x_register, 0x21);
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), false);
+
+        cpu.stack_pointer = 0x91;
+        cpu.asm_tsx();
+        assert_eq!(cpu.is_zero_set(), false);
+        assert_eq!(cpu.is_negative_set(), true);
+
+        cpu.stack_pointer = 0x00;
+        cpu.asm_tsx();
         assert_eq!(cpu.is_zero_set(), true);
         assert_eq!(cpu.is_negative_set(), false);
     }
