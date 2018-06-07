@@ -2,8 +2,8 @@ use ppu_memory::PPUMemory;
 
 #[allow(dead_code)]
 pub struct PPU {
-    ppu_control_register_1: *const u8, // 0x2000 Read-only
-    ppu_control_register_2: *const u8, // 0x2001 Read-only
+    ppu_control_register: *const u8, // 0x2000 Read-only
+    ppu_mask_register: *const u8, // 0x2001 Read-only
     ppu_status_register: *mut u8, // 0x2002 Used by CPU to read status from PPU
     spr_ram_address_register: *const u8, // 0x2003 Somehow used to load sprites?
     spr_ram_io_register: *const u8, // 0x2004 Also somehow used to load sprites?
@@ -22,8 +22,8 @@ impl PPU {
     pub fn new(io_registers: *mut u8) -> PPU {
         unsafe {
             return PPU {
-                ppu_control_register_1: io_registers.offset(0),
-                ppu_control_register_2: io_registers.offset(1),
+                ppu_control_register: io_registers.offset(0),
+                ppu_mask_register: io_registers.offset(1),
                 ppu_status_register: io_registers.offset(2),
                 spr_ram_address_register: io_registers.offset(3),
                 spr_ram_io_register: io_registers.offset(4),
@@ -62,6 +62,42 @@ impl PPU {
             self.set_vblank_status(true);
             // TODO Send NMI
             self.scanline_counter = 0;
+        }
+    }
+
+    fn get_base_nametable_address(&self) -> u16 {
+        unsafe {
+            let bit_values: u8 = *(self.ppu_control_register) & 0b0000_0011;
+            return 0x2000 + (0x400 * bit_values as u16);
+        }
+    }
+
+    fn get_sprite_pattern_table_address(&self) -> u16 {
+        unsafe {
+            let bit_set: bool = (*(self.ppu_control_register) & 0b0000_1000) == 1;
+            if bit_set {
+                return 0x1000;
+            } else {
+                return 0x0; // Though I realize 0x0 == 0, putting the 0x in front makes it more obvious to me that I'm referring to an address. Don't hate
+            }
+        }
+    }
+
+    // It seems like you shouldn't have to use two different bits to determine this (sprite vs background). But maybe sometimes you don't use one or the other?
+    fn get_background_pattern_table_address(&self) -> u16 {
+        unsafe {
+            let bit_set: bool = (*(self.ppu_control_register) & 0b0001_0000) == 1;
+            if bit_set {
+                return 0x1000;
+            } else {
+                return 0x0;
+            }
+        }
+    }
+
+    fn using_16px_height_sprites(&self) -> bool {
+        unsafe {
+            return (*(self.ppu_control_register) & 0b0010_0000) == 1;
         }
     }
 
@@ -132,8 +168,8 @@ mod tests {
         unsafe {
             let first_address: *mut u8 = memory.first_mut().unwrap();
             let ppu = PPU::new(first_address.offset(1));
-            assert_eq!(*ppu.ppu_control_register_1, 0x12);
-            assert_eq!(*ppu.ppu_control_register_2, 0x23);
+            assert_eq!(*ppu.ppu_control_register, 0x12);
+            assert_eq!(*ppu.ppu_mask_register, 0x23);
             assert_eq!(*ppu.ppu_status_register, 0x31);
             assert_eq!(*ppu.spr_ram_address_register, 0x48);
             assert_eq!(*ppu.spr_ram_io_register, 0x51);
@@ -150,9 +186,9 @@ mod tests {
         let ppu = PPU::new(first_address);
 
         unsafe {
-            assert_eq!(*ppu.ppu_control_register_1, 0x12);
+            assert_eq!(*ppu.ppu_control_register, 0x12);
             memory[0] = 0x23;
-            assert_eq!(*ppu.ppu_control_register_1, 0x23);
+            assert_eq!(*ppu.ppu_control_register, 0x23);
 
             *ppu.ppu_status_register = 0x40;
             assert_eq!(memory[2], 0x40);
