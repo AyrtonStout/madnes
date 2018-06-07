@@ -2,6 +2,7 @@ use instruction_set::get_instruction;
 use cpu_memory::CPUMemory;
 use instruction_set::AddressingMode;
 use instruction_set::InstructionType;
+use ppu::PPU as PPU;
 
 static STACK_POINTER_OFFSET: u16 = 0x100;
 
@@ -12,7 +13,8 @@ pub struct CPU {
     accumulator: u8,
     x_register: u8,
     y_register: u8,
-    memory: CPUMemory
+    memory: CPUMemory,
+    ppu: *mut PPU
 }
 
 impl CPU {
@@ -24,8 +26,13 @@ impl CPU {
             accumulator: 0,
             x_register: 0,
             y_register: 0,
-            memory: CPUMemory::new()
+            memory: CPUMemory::new(),
+            ppu: 0 as *mut PPU // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
         }
+    }
+
+    pub fn init_ppu(&mut self, ppu: *mut PPU) {
+        self.ppu = ppu;
     }
 
     pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
@@ -184,6 +191,31 @@ impl CPU {
         return self.memory.get_ppu_io_registers();
     }
 
+    // This function might not stick around in the code for long but it wraps the CPUMemory calls because
+    // sometimes we might need to do extra things if we write to certain memory-mapped locations
+    fn write_to_memory_8(&mut self, address: u16, new_value: u8) {
+        println!("CPU {:X}", new_value);
+        self.memory.set_8_bit_value(address, new_value);
+        if address >= 0x2005 && address <= 0x2007 {
+            unsafe {
+                (*self.ppu).write_to_register(address, new_value);
+            }
+        } else if address == 0x4014 {
+            self.perform_dma(new_value);
+        }
+    }
+
+    // DMA sends 256 bytes of sprite data to the PPU. The offset determines which address to start at, in 256 byte increments
+    // So if memory_offset was 0x12, we'd send 0x1200 to 0x12FF to the PPU to get stored in OAM
+    // FIXME This first attempt is hella inaccurate as far as cycles go. The PPU should run for like 500 cycles during this process
+    fn perform_dma(&mut self, memory_offset: u8) {
+        let address = memory_offset as u16 * 0x100;
+        let sprite_data = self.memory.get_memory_range(address, 0x100);
+        unsafe {
+            (*self.ppu).receive_dma(sprite_data);
+        }
+    }
+
     fn set_carry_bit(&mut self, is_set: bool) {
         if is_set {
             self.status_register |= 0x01;
@@ -258,7 +290,7 @@ impl CPU {
 
     fn push_stack(&mut self, value_to_write: u8) {
         let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
-        self.memory.set_8_bit_value(stack_address, value_to_write);
+        self.write_to_memory_8(stack_address, value_to_write);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1); // This tells rust we expect to underflow (if that's a word) and wrap around to 0xFF
     }
 
@@ -285,6 +317,7 @@ impl CPU {
     }
 
     // Read more about decimal mode here http://6502.org/tutorials/decimal_mode.html
+    // Actually, it seems the NES might not GAF about Decimal Mode, and this stuff is just here for other 6502 processors
     #[allow(dead_code)]
     pub fn is_in_decimal_mode(&self) -> bool {
         return (self.status_register & 0x08) == 0x08;
@@ -302,6 +335,7 @@ impl CPU {
         return (self.status_register & 0x02) == 0x02;
     }
 
+    #[allow(dead_code)]
     pub fn is_overflow_set(&self) -> bool {
         return (self.status_register & 0x40) == 0x40;
     }
@@ -329,7 +363,8 @@ impl CPU {
 
     // Store the accumulator at a memory location
     fn asm_sta(&mut self, source: u16) {
-        self.memory.set_8_bit_value(source, self.accumulator);
+        let accumulator = self.accumulator;
+        self.write_to_memory_8(source, accumulator);
     }
 
     fn asm_and(&mut self, source: u8) {
@@ -364,7 +399,7 @@ impl CPU {
     fn asm_inc(&mut self, address: u16) {
         let memory_value = self.memory.get_8_bit_value(address);
         let new_memory_value = memory_value.wrapping_add(1);
-        self.memory.set_8_bit_value(address, new_memory_value);
+        self.write_to_memory_8(address, new_memory_value);
         self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
     }
@@ -451,7 +486,7 @@ impl CPU {
     fn asm_ror_memory(&mut self, address: u16) {
         let memory_value = self.memory.get_8_bit_value(address);
         let new_value = self.asm_ror(memory_value);
-        self.memory.set_8_bit_value(address, new_value);
+        self.write_to_memory_8(address, new_value);
     }
 
     // Sets various flags based off the current accumulator and memory address
@@ -555,11 +590,13 @@ impl CPU {
     }
 
     fn asm_stx(&mut self, address: u16) {
-        self.memory.set_8_bit_value(address, self.x_register);
+        let x_register = self.x_register;
+        self.write_to_memory_8(address, x_register);
     }
 
     fn asm_sty(&mut self, address: u16) {
-        self.memory.set_8_bit_value(address, self.y_register);
+        let y_register = self.y_register;
+        self.write_to_memory_8(address, y_register);
     }
 
     // Branches on 'carry clear' - the carry bit being 0 / not set
@@ -638,7 +675,7 @@ impl CPU {
     fn asm_dec(&mut self, address: u16) {
         let memory_value: u8 = self.memory.get_8_bit_value(address);
         let new_memory_value = memory_value.wrapping_sub(1);
-        self.memory.set_8_bit_value(address, new_memory_value);
+        self.write_to_memory_8(address, new_memory_value);
         self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
     }

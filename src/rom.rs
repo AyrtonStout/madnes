@@ -15,7 +15,7 @@ pub struct Rom {
 pub fn read_file() -> Result<Rom, String> {
     let mut buffer = vec![0; 10];
 //    let mut file = File::open("Super Mario Bros 3 (E).nes").expect("Bad things");
-    let mut file = File::open("Super Mario Bros (E).nes").expect("Bad things");
+    let mut file = File::open("Super Mario Bros. (JU).nes").expect("Bad things");
 //    let mut file = File::open("Contra (USA).nes").expect("Bad things");
 
     file.read_to_end(&mut buffer).expect("More bad things");
@@ -30,7 +30,6 @@ pub fn read_file() -> Result<Rom, String> {
 
     current_rom_offset += prg_rom_data.len();
     let chr_rom_data = parse_chr_rom_data(header.chr_rom_size, &rom_data[current_rom_offset..]);
-
 
     if header.rom_has_trainer_data() {
         panic!("ROMs with trainers not yet supported!");

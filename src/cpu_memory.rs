@@ -51,7 +51,15 @@ impl CPUMemory {
         return ((self.memory[0xFFFD] as u16) << 8) | (self.memory[0xFFFC] as u16);
     }
 
-    pub fn get_8_bit_value(&self, address: u16) -> u8 {
+    pub fn get_8_bit_value(&mut self, address: u16) -> u8 {
+        if address == 0x2002 {
+            // "When a read from $2002 occurs, bit 7 [of the status register] is reset to 0 as are $2005 and $2006."
+            // I think my handling of NMIs isn't very in-line with the real NES hardware. I reset bit 7 when I read for NMIs. So I don't reset it here
+            // FIXME? Maybe it's still a good idea to clear the NMI bit here though... remains to be seen
+            println!("Reading PPU Status!");
+            self.memory[0x2005] = 0;
+            self.memory[0x2006] = 0;
+        }
         return self.memory[address as usize];
     }
 
@@ -70,12 +78,13 @@ impl CPUMemory {
     }
 
     pub fn set_8_bit_value(&mut self, address: u16, value: u8) {
+        // TODO apparently some games intentionally write to invalid addresses as a no-op instead.
         CPUMemory::check_valid_write(address);
 
         self.memory[address as usize] = value;
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Is actually used. It's used by tests. At least for now
     pub fn set_16_bit_value(&mut self, address: u16, value: u16) {
         CPUMemory::check_valid_write(address);
 

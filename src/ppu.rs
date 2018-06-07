@@ -1,14 +1,21 @@
+use ppu_memory::PPUMemory;
 
+#[allow(dead_code)]
 pub struct PPU {
     ppu_control_register_1: *const u8, // 0x2000 Read-only
     ppu_control_register_2: *const u8, // 0x2001 Read-only
     ppu_status_register: *mut u8, // 0x2002 Used by CPU to read status from PPU
     spr_ram_address_register: *const u8, // 0x2003 Somehow used to load sprites?
     spr_ram_io_register: *const u8, // 0x2004 Also somehow used to load sprites?
-    vram_address_register_1: *const u8, // 0x2005 Probably the low byte for a vram read / write
-    vram_address_register_2: *const u8, // 0x2006 Probably the high byte for a vram read / write
-    vram_io_register: *mut u8, // 0x2007 Reads or writes a byte from VRAM at the current location
-    scanline_counter: u16 // Tracks when to VBlank / Render
+    vram_scroll_register: *const u8, // 0x2005 Probably the low byte for a vram read / write (Or maybe this is purely for scrolling?)
+    vram_address_register: *const u8, // 0x2006 Probably the high byte for a vram read / write
+    vram_data_register: *mut u8, // 0x2007 Reads or writes a byte from VRAM at the current location
+    scanline_counter: u16, // Tracks when to VBlank / Render,
+    object_attribute_memory: [u8; 0x100], // Stores current sprite data to render. Copied here by the CPU writing to 0x4014
+    high_byte_write: bool, // Used by $2005 and $2006 to control which part of the buffer is written to
+    vram_scroll_address: u16,
+    vram_write_address: u16,
+    memory: PPUMemory
 }
 
 impl PPU {
@@ -20,10 +27,15 @@ impl PPU {
                 ppu_status_register: io_registers.offset(2),
                 spr_ram_address_register: io_registers.offset(3),
                 spr_ram_io_register: io_registers.offset(4),
-                vram_address_register_1: io_registers.offset(5),
-                vram_address_register_2: io_registers.offset(6),
-                vram_io_register: io_registers.offset(7),
-                scanline_counter: 0
+                vram_scroll_register: io_registers.offset(5),
+                vram_address_register: io_registers.offset(6),
+                vram_data_register: io_registers.offset(7),
+                scanline_counter: 0,
+                object_attribute_memory: [0; 0x100],
+                high_byte_write: true,
+                vram_scroll_address: 0,
+                vram_write_address: 0,
+                memory: PPUMemory::new()
             }
         }
     }
@@ -53,8 +65,45 @@ impl PPU {
         }
     }
 
+    // CPU needs to call this whenever it reads from 0x2002
+    pub fn status_register_read(&mut self) {
+        self.high_byte_write = true;
+    }
+
+    pub fn write_to_register(&mut self, address: u16, value: u8) {
+        if address == 0x2005 {
+            if self.high_byte_write {
+                self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
+            } else {
+                self.vram_scroll_address = (self.vram_scroll_address & 0xFF00) | (value as u16);
+            }
+            self.high_byte_write = !self.high_byte_write;
+        } else if address == 0x2006 {
+            if self.high_byte_write {
+                self.vram_write_address = ((value as u16) << 8) | (self.vram_write_address & 0x00FF);
+            } else {
+                self.vram_write_address = (self.vram_write_address & 0xFF00) | (value as u16);
+            }
+            self.high_byte_write = !self.high_byte_write;
+        } else if address == 0x2007 {
+            println!("Writing {:X} to address {:X}", value, self.vram_write_address);
+            self.memory.set_8_bit_value(self.vram_write_address, value);
+
+            // TODO this needs to sometimes be 16 or 32 or something based off a PPU CTRL flag
+            self.vram_write_address += 1;
+        }
+    }
+
+    // Used to fill up the OAM table with new sprite data. No idea what DMA actually stands for
+    pub fn receive_dma(&mut self, sprite_data: Vec<u8>) {
+        for i in 0..self.object_attribute_memory.len() {
+            let sprite_byte = sprite_data[i];
+            self.object_attribute_memory[i] = sprite_byte;
+        }
+    }
+
     fn set_vblank_status(&mut self, is_set: bool) {
-        println!("VBlank set to {}", is_set);
+//        println!("VBlank set to {}", is_set);
         unsafe {
             if is_set {
                 *self.ppu_status_register |= 0x80;
@@ -88,9 +137,9 @@ mod tests {
             assert_eq!(*ppu.ppu_status_register, 0x31);
             assert_eq!(*ppu.spr_ram_address_register, 0x48);
             assert_eq!(*ppu.spr_ram_io_register, 0x51);
-            assert_eq!(*ppu.vram_address_register_1, 0x70);
-            assert_eq!(*ppu.vram_address_register_2, 0xAB);
-            assert_eq!(*ppu.vram_io_register, 0xE2);
+            assert_eq!(*ppu.vram_scroll_register, 0x70);
+            assert_eq!(*ppu.vram_address_register, 0xAB);
+            assert_eq!(*ppu.vram_data_register, 0xE2);
         }
     }
 
