@@ -43,6 +43,15 @@ impl PPU {
     //TODO I don't think the frame counter is actually incremented every clock tick. Sounds like it's more like every 4th tick or something
     pub fn tick(&mut self) {
         self.scanline_counter += 1;
+        if self.are_sprites_rendered() {
+            println!("Not drawing sprites!");
+            panic!("")
+        }
+
+        if self.is_background_rendered() {
+            println!("Not drawing background!");
+            panic!("")
+        }
 
         if self.scanline_counter < 20 {
             // We are in VBlank time and likely will do nothing
@@ -65,6 +74,7 @@ impl PPU {
         }
     }
 
+    #[allow(dead_code)]
     fn get_base_nametable_address(&self) -> u16 {
         unsafe {
             let bit_values: u8 = *(self.ppu_control_register) & 0b0000_0011;
@@ -72,6 +82,7 @@ impl PPU {
         }
     }
 
+    #[allow(dead_code)]
     fn get_sprite_pattern_table_address(&self) -> u16 {
         unsafe {
             let bit_set: bool = (*(self.ppu_control_register) & 0b0000_1000) == 1;
@@ -84,6 +95,7 @@ impl PPU {
     }
 
     // It seems like you shouldn't have to use two different bits to determine this (sprite vs background). But maybe sometimes you don't use one or the other?
+    #[allow(dead_code)]
     fn get_background_pattern_table_address(&self) -> u16 {
         unsafe {
             let bit_set: bool = (*(self.ppu_control_register) & 0b0001_0000) == 1;
@@ -95,13 +107,43 @@ impl PPU {
         }
     }
 
+    #[allow(dead_code)]
     fn using_16px_height_sprites(&self) -> bool {
         unsafe {
             return (*(self.ppu_control_register) & 0b0010_0000) == 1;
         }
     }
 
+    // If this is false, the background shouldn't be rendered on the leftmost 8 pixels
+    #[allow(dead_code)]
+    fn is_background_to_left_edge(&self) -> bool {
+        unsafe {
+            return (*(self.ppu_mask_register) & 0b0000_0010) == 1;
+        }
+    }
+
+    // If this is false, the sprites shouldn't be rendered on the leftmost 8 pixels
+    #[allow(dead_code)]
+    fn are_sprites_to_left_edge(&self) -> bool {
+        unsafe {
+            return (*(self.ppu_mask_register) & 0b0000_0100) == 1;
+        }
+    }
+
+    fn is_background_rendered(&self) -> bool {
+        unsafe {
+            return (*(self.ppu_mask_register) & 0b0000_1000) != 0;
+        }
+    }
+
+    fn are_sprites_rendered(&self) -> bool {
+        unsafe {
+            return (*(self.ppu_mask_register) & 0b0001_0000) != 0;
+        }
+    }
+
     // CPU needs to call this whenever it reads from 0x2002
+    #[allow(dead_code)]
     pub fn status_register_read(&mut self) {
         self.high_byte_write = true;
     }
@@ -122,7 +164,6 @@ impl PPU {
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2007 {
-            println!("Writing {:X} to address {:X}", value, self.vram_write_address);
             self.memory.set_8_bit_value(self.vram_write_address, value);
 
             // TODO this needs to sometimes be 16 or 32 or something based off a PPU CTRL flag

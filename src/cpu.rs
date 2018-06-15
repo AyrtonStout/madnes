@@ -21,8 +21,8 @@ impl CPU {
     pub fn new() -> CPU {
         return CPU {
             program_counter: 0,
-            stack_pointer: 0xFF, // This will grow downward (decrement) down to 0. Then it wraps around back to 0xFF
-            status_register: 0,
+            stack_pointer: 0xFD, // This will grow downward (decrement) down to 0. Then it wraps around back to 0xFF
+            status_register: 0b0010_0100,
             accumulator: 0,
             x_register: 0,
             y_register: 0,
@@ -60,11 +60,10 @@ impl CPU {
     fn handle_nmi(&mut self) {
         if self.memory.are_nmis_enabled() {
             if self.memory.read_ppu_for_nmi() {
-                println!("NMI detected for CPU!");
+//                println!("NMI detected for CPU!");
                 let program_counter = self.program_counter;
-                let status_register = self.status_register;
                 self.push_stack_16(program_counter);
-                self.push_stack(status_register);
+                self.push_status_to_stack(true);
                 self.asm_sei(); // Disable interrupts
                 self.program_counter = self.memory.get_16_bit_value(0xFFFA);
             }
@@ -72,20 +71,24 @@ impl CPU {
     }
 
     fn get_source_address(&mut self, instruction: InstructionType, instruction_data: &[u8]) -> u16 {
+        // Make copies so the borrow checker doesn't get mad
+        let x_register = self.x_register;
+        let y_register = self.y_register;
+
         match instruction.addressing_mode {
             AddressingMode::Immediate => panic!("Makes no sense! {}", instruction.name),
             AddressingMode::Absolute => CPU::convert_to_address(instruction_data),
-            AddressingMode::ZeroPageAbsolute => CPU::convert_to_address(&[instruction_data[0], 0x00]),
             AddressingMode::Implied => panic!("There is no data for implied instructions!"),
             AddressingMode::Accumulator => panic!("There is no data for accumulator instructions!"),
-            AddressingMode::AbsoluteX => self.compute_absolute_x_address(instruction_data),
-            AddressingMode::AbsoluteY => self.compute_absolute_y_address(instruction_data),
-            AddressingMode::ZeroPageAbsoluteX => self.compute_absolute_x_address(&[instruction_data[0], 0x00]),
-            AddressingMode::ZeroPageAbsoluteY => self.compute_absolute_y_address(&[instruction_data[0], 0x00]),
+            AddressingMode::AbsoluteX => self.compute_absolute_address(instruction_data, x_register),
+            AddressingMode::AbsoluteY => self.compute_absolute_address(instruction_data, y_register),
+            AddressingMode::ZeroPageAbsolute => self.compute_zero_page_absolute_address(instruction_data[0], 0),
+            AddressingMode::ZeroPageAbsoluteX => self.compute_zero_page_absolute_address(instruction_data[0], x_register),
+            AddressingMode::ZeroPageAbsoluteY => self.compute_zero_page_absolute_address(instruction_data[0], y_register),
             AddressingMode::PreIndexedIndirect => self.get_pre_indexed_indirect_address(instruction_data[0]),
             AddressingMode::PostIndexedIndirect => self.get_post_indexed_indirect_address(instruction_data[0]),
             AddressingMode::Relative => panic!("Also makes no sense!"),
-            AddressingMode::Indirect => self.memory.get_16_bit_value(CPU::convert_to_address(instruction_data)),
+            AddressingMode::Indirect => self.get_indirect_address(instruction_data),
             AddressingMode::Empty => panic!("AddressingMode not set for {}!", instruction.name)
         }
     }
@@ -94,6 +97,7 @@ impl CPU {
         if instruction.addressing_mode == AddressingMode::Implied {
             match instruction.name.as_ref() {
                 "CLC" => self.asm_clc(),
+                "CLV" => self.asm_clv(),
                 "SEC" => self.asm_sec(),
                 "PHA" => self.asm_pha(),
                 "RTI" => self.asm_rti(),
@@ -111,6 +115,11 @@ impl CPU {
                 "DEX" => self.asm_dex(),
                 "CLD" => self.asm_cld(),
                 "INX" => self.asm_inx(),
+                "BRK" => self.asm_brk(),
+                "NOP" => self.asm_nop(2),
+                "SED" => self.asm_sed(),
+                "PHP" => self.asm_php(),
+                "PLP" => self.asm_plp(),
                 _ => panic!("Implied instruction {} not implemented!", instruction.name)
             }
             return;
@@ -136,11 +145,23 @@ impl CPU {
                 "STA" => { self.asm_sta(source_address); return; },
                 "STY" => { self.asm_sty(source_address); return; },
                 "STX" => { self.asm_stx(source_address); return; },
+                "SAX" => { self.asm_sax(source_address); return; }, // Unofficial opcode
                 "JSR" => { self.asm_jsr(source_address); return; },
                 "JMP" => { self.asm_jmp(source_address); return; },
                 "INC" => { self.asm_inc(source_address); return; },
                 "DEC" => { self.asm_dec(source_address); return; },
+                "DCP" => { self.asm_dcp(source_address); return; }, // Unofficial opcode
+                "ISB" => { self.asm_isb(source_address); return; }, // Unofficial opcode
+                "SLO" => { self.asm_slo(source_address); return; }, // Unofficial opcode
                 "ROR" => { self.asm_ror_memory(source_address); return; },
+                "ROL" => { self.asm_rol_memory(source_address); return; },
+                "RLA" => { self.asm_rla(source_address); return; }, // Unofficial opcode
+                "RRA" => { self.asm_rra(source_address); return; }, // Unofficial opcode
+                "SRE" => { self.asm_sre(source_address); return; }, // Unofficial opcode
+                "LSR" => { self.asm_lsr_memory(source_address); return; },
+                "ASL" => { self.asm_asl_memory(source_address); return; },
+                "DOP" => { self.asm_nop(3); return; }, // Unofficial opcode
+                "TOP" => { self.asm_nop(4); return; }, // Unofficial opcode
                 _ => ()
             }
         }
@@ -159,6 +180,7 @@ impl CPU {
             "LDA" => { self.asm_lda(source_value); },
             "LDX" => { self.asm_ldx(source_value); },
             "LDY" => { self.asm_ldy(source_value); },
+            "LAX" => { self.asm_lax(source_value); },
             "CMP" => { self.asm_cmp(source_value); },
             "CPX" => { self.asm_cpx(source_value); },
             "CPY" => { self.asm_cpy(source_value); },
@@ -166,25 +188,18 @@ impl CPU {
             "BCS" => { self.asm_bcs(source_value); },
             "BNE" => { self.asm_bne(source_value); },
             "BEQ" => { self.asm_beq(source_value); },
+            "BVS" => { self.asm_bvs(source_value); },
+            "BVC" => { self.asm_bvc(source_value); },
             "BCC" => { self.asm_bcc(source_value); },
+            "BMI" => { self.asm_bmi(source_value); },
             "ORA" => { self.asm_ora(source_value); },
             "AND" => { self.asm_and(source_value); },
             "BIT" => { self.asm_bit(source_value); },
             "EOR" => { self.asm_eor(source_value); },
+            "DOP" => { self.asm_nop(2); }, // Unofficial
             _ => panic!("Found unimplemented instruction! Name: {} Opcode: {:X}", instruction.name, opcode)
         }
 
-        /*
-        let instruction_name = get_instruction(opcode).name;
-        if instruction_data.is_empty() {
-            print!("DEBUG - Opcode: {} ({:X})", instruction_name, opcode);
-        } else if instruction_data.len() == 1 {
-            print!("DEBUG - Opcode: {} ({:X})  Data: ({:X})", instruction_name, opcode, instruction_data[0]);
-        } else {
-            print!("DEBUG - Opcode: {} ({:X})  Data: ({:X} {:X})", instruction_name, opcode, instruction_data[0], instruction_data[1]);
-        }
-        println!("  Program Counter: {} ({:X})", self.program_counter, self.program_counter);
-        */
     }
 
     pub fn get_ppu_io_registers_address(&mut self) -> *mut u8 {
@@ -194,7 +209,6 @@ impl CPU {
     // This function might not stick around in the code for long but it wraps the CPUMemory calls because
     // sometimes we might need to do extra things if we write to certain memory-mapped locations
     fn write_to_memory_8(&mut self, address: u16, new_value: u8) {
-        println!("CPU {:X}", new_value);
         self.memory.set_8_bit_value(address, new_value);
         if address >= 0x2005 && address <= 0x2007 {
             unsafe {
@@ -256,6 +270,15 @@ impl CPU {
         }
     }
 
+    // Some resource seem to disagree about this bit. I actually think this might be wrong...
+    fn set_brk_bit(&mut self, is_set: bool) {
+        if is_set {
+            self.status_register |= 0b0001_0000;
+        } else {
+            self.status_register &= !0b0001_0000;
+        }
+    }
+
     fn convert_to_address(address_data: &[u8]) -> u16 {
         if address_data.len() == 2 {
             return ((address_data[1] as u16) << 8) | (address_data[0] as u16);
@@ -264,28 +287,51 @@ impl CPU {
         }
     }
 
-    fn get_pre_indexed_indirect_address(&self, zero_page_address: u8) -> u16 {
-        let address = zero_page_address + self.x_register;
-        return self.memory.get_16_bit_value(address as u16);
+    fn get_pre_indexed_indirect_address(&mut self, zero_page_address: u8) -> u16 {
+        let address = zero_page_address.wrapping_add(self.x_register);
+        return if address == 0xFF {
+            let low_byte = self.memory.get_8_bit_value(0xFF);
+            let high_byte = self.memory.get_8_bit_value(0x00);
+            CPU::convert_to_address(&[low_byte, high_byte])
+        } else {
+            self.memory.get_16_bit_value(address as u16)
+        }
     }
 
-    fn get_post_indexed_indirect_address(&self, zero_page_address: u8) -> u16 {
-        let address: u16 = self.memory.get_16_bit_value(zero_page_address as u16);
-        return address + self.y_register as u16;
+    fn get_post_indexed_indirect_address(&mut self, zero_page_address: u8) -> u16 {
+        // TODO instead of having this (and pre-indexed) both do this check, add a function to CPUMemory to get a zero-page address
+        let address = if zero_page_address == 0xFF {
+            let low_byte = self.memory.get_8_bit_value(0xFF);
+            let high_byte = self.memory.get_8_bit_value(0x00);
+            CPU::convert_to_address(&[low_byte, high_byte])
+        } else {
+            self.memory.get_16_bit_value(zero_page_address as u16)
+        };
+
+        return address.wrapping_add(self.y_register as u16);
     }
 
-    fn compute_absolute_y_address(&mut self, instruction_data: &[u8]) -> u16 {
+    // Used only by JMP. Returns the address stored at the address
+    fn get_indirect_address(&self, instruction_data: &[u8]) -> u16 {
+        // This is a bug in the 6502 itself that has to be reproduced for accuracy
+        // TODO test this necessarily-bugged code path
+        let starting_address: u16 = if instruction_data[0] == 0xFF {
+            CPU::convert_to_address(&[instruction_data[0], instruction_data[1] - 1])
+        } else {
+            CPU::convert_to_address(instruction_data)
+        };
+
+        let true_address = self.memory.get_16_bit_value(starting_address);
+        return true_address;
+    }
+
+    fn compute_absolute_address(&mut self, instruction_data: &[u8], offset: u8) -> u16 {
         let address = CPU::convert_to_address(instruction_data);
-        // Temporarily convert to signed numbers because y_register might be negative
-        let y_register = (self.y_register as i8) as i16; // Sign extend the number as a (potential) negative number
-        return (address as i16 + y_register) as u16;
+        return address.wrapping_add(offset as u16);
     }
 
-    fn compute_absolute_x_address(&mut self, instruction_data: &[u8]) -> u16 {
-        let address = CPU::convert_to_address(instruction_data);
-        // Temporarily convert to signed numbers because x_register might be negative
-        let x_register = (self.x_register as i8) as i16; // Sign extend the number as a (potential) negative number
-        return (address as i16 + x_register) as u16;
+    fn compute_zero_page_absolute_address(&mut self, starting_address: u8, offset: u8) -> u16 {
+        return starting_address.wrapping_add(offset) as u16;
     }
 
     fn push_stack(&mut self, value_to_write: u8) {
@@ -295,8 +341,8 @@ impl CPU {
     }
 
     fn push_stack_16(&mut self, value_to_write: u16) {
-        self.push_stack(value_to_write as u8);
         self.push_stack((value_to_write >> 8) as u8);
+        self.push_stack(value_to_write as u8);
     }
 
     fn pull_stack(&mut self) -> u8 {
@@ -306,8 +352,8 @@ impl CPU {
     }
 
     fn pull_stack_16(&mut self) -> u16 {
-        let high_byte: u16 = (self.pull_stack() as u16) << 8;
         let low_bye: u16 = self.pull_stack() as u16;
+        let high_byte: u16 = (self.pull_stack() as u16) << 8;
         return high_byte | low_bye;
     }
 
@@ -341,6 +387,7 @@ impl CPU {
     }
 
     // Change the program counter by an offset
+    // Branch instructions do signed arithmetic for their offsets
     fn branch(&mut self, offset: u8) {
         self.program_counter = (self.program_counter as i32 + (offset as i8) as i32) as u16;
     }
@@ -354,6 +401,29 @@ impl CPU {
         self.set_sign(difference);
     }
 
+    // TODO test
+    fn push_status_to_stack(&mut self, from_interrupt: bool) {
+        let mut status_register = self.status_register;
+        status_register |= 0b0010_0000; // Bit 5 of the status register is always set
+
+        // Bit 4 is conditionally set, depending on what triggered it. However this only is set on the stack. Not the current register
+        if from_interrupt {
+            status_register &= !0b0001_0000;
+        } else {
+            status_register |= 0b0001_0000;
+        }
+
+        self.push_stack(status_register);
+    }
+
+    // TODO test
+    fn pull_status_from_stack(&mut self) {
+        let mut status_register = self.pull_stack();
+        status_register &= 0b1100_1111; // Ignore bits 4 and 5
+        status_register |= 0b0011_0000 & self.status_register; // Keep the bits 4 and 5 that we already have
+        self.status_register = status_register;
+    }
+
     fn asm_ora(&mut self, source: u8) {
         let result = source | self.accumulator;
         self.set_sign(result);
@@ -365,6 +435,14 @@ impl CPU {
     fn asm_sta(&mut self, source: u16) {
         let accumulator = self.accumulator;
         self.write_to_memory_8(source, accumulator);
+    }
+
+    // ** Unofficial Instruction **
+    // ANDs the X register with the accumulator and stores the result in memory
+    // TODO test
+    fn asm_sax(&mut self, source: u16) {
+        let result = self.x_register & self.accumulator;
+        self.memory.set_8_bit_value(source, result);
     }
 
     fn asm_and(&mut self, source: u8) {
@@ -395,6 +473,16 @@ impl CPU {
         self.x_register = source;
     }
 
+    // ** Unofficial Instruction **
+    // Load a value into both the X register and the accumulator
+    // TODO test
+    fn asm_lax(&mut self, source: u8) {
+        self.set_sign(source);
+        self.set_zero(source);
+        self.accumulator = source;
+        self.x_register = source;
+    }
+
     // Increment the value stored at a memory location
     fn asm_inc(&mut self, address: u16) {
         let memory_value = self.memory.get_8_bit_value(address);
@@ -402,6 +490,56 @@ impl CPU {
         self.write_to_memory_8(address, new_memory_value);
         self.set_sign(new_memory_value);
         self.set_zero(new_memory_value);
+    }
+
+    // ** Unofficial **
+    // Equivalent to an INC of the value then an SBC
+    // TODO test
+    fn asm_isb(&mut self, address: u16) {
+        self.asm_inc(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_sbc(value);
+    }
+
+    // ** Unofficial **
+    // Equivalent to an ASL of the value then an ORA
+    // TODO test
+    fn asm_slo(&mut self, address: u16) {
+        self.asm_asl_memory(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_ora(value);
+    }
+
+    // ** Unofficial **
+    // Equivalent to a ROL of the value then an AND
+    // TODO test
+    fn asm_rla(&mut self, address: u16) {
+        self.asm_rol_memory(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_and(value);
+    }
+
+    // ** Unofficial **
+    // Equivalent to a ROL of the value then an AND
+    // TODO test
+    fn asm_rra(&mut self, address: u16) {
+        self.asm_ror_memory(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_adc(value);
+    }
+
+    // ** Unofficial **
+    // Equivalent to a LSR of the value then an EOR
+    // TODO test
+    fn asm_sre(&mut self, address: u16) {
+        self.asm_lsr_memory(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_eor(value);
     }
 
     // Subtraction (with carry)
@@ -443,9 +581,14 @@ impl CPU {
         self.branch(source);
     }
 
-    // Clears the carry flag so that it is not set
+    // Clears the carry flag
     fn asm_clc(&mut self) {
         self.set_carry_bit(false);
+    }
+
+    // Clears the overflow flag
+    fn asm_clv(&mut self) {
+        self.set_overflow_bit(false);
     }
 
     // Have program start executing from a new address. Store current address on the stack
@@ -459,12 +602,7 @@ impl CPU {
     // Bitshift accumulator to the left by 1, making the LSB the value of the current carry
     fn asm_rol_accumulator(&mut self) {
         let accumulator = self.accumulator;
-        let shifted_accumulator = self.accumulator << 1;
-        let final_accumulator = if self.is_carry_set() { shifted_accumulator | 0x01 } else { shifted_accumulator }; // Why Rust no have ternary
-        self.set_zero(final_accumulator);
-        self.set_sign(final_accumulator);
-        self.set_carry_bit((accumulator & 0x80) == 0x80);
-        self.accumulator = final_accumulator;
+        self.accumulator = self.asm_rol(accumulator);
     }
 
     fn asm_ror(&mut self, source: u8) -> u8 {
@@ -476,16 +614,64 @@ impl CPU {
         return result;
     }
 
+    fn asm_rol(&mut self, source: u8) -> u8 {
+        let shifted_source = source << 1;
+        let final_source = if self.is_carry_set() { shifted_source | 0x01 } else { shifted_source }; // Why Rust no have ternary
+        self.set_zero(final_source);
+        self.set_sign(final_source);
+        self.set_carry_bit((source & 0x80) == 0x80);
+        return final_source;
+    }
+
+    fn asm_lsr(&mut self, source: u8) -> u8 {
+        let shifted_source = source >> 1;
+        self.set_zero(shifted_source);
+        self.set_sign(shifted_source);
+        self.set_carry_bit((source & 0x01) == 0x01);
+        return shifted_source;
+    }
+
+    fn asm_asl(&mut self, source: u8) -> u8 {
+        let shifted_source = source << 1;
+        self.set_zero(shifted_source);
+        self.set_sign(shifted_source);
+        self.set_carry_bit((source & 0x80) == 0x80);
+        return shifted_source;
+    }
+
     // Bitshift accumulator to the right by 1, making the MSB the value of the current carry
     fn asm_ror_accumulator(&mut self) {
         let accumulator = self.accumulator;
         self.accumulator = self.asm_ror(accumulator);
     }
 
-    // Bitshift a memory location to the right by 1, making the MSB the value of the current carry
+    // Bitshift a memory location to the right by 1, making the MSB the value of the current carry. If LSB is set, set the carry flag
     fn asm_ror_memory(&mut self, address: u16) {
         let memory_value = self.memory.get_8_bit_value(address);
         let new_value = self.asm_ror(memory_value);
+        self.write_to_memory_8(address, new_value);
+    }
+
+    // Bitshift a memory location to the left by 1, making the LSB the value of the current carry. If MSB is set, set the carry flag
+    fn asm_rol_memory(&mut self, address: u16) {
+        let memory_value = self.memory.get_8_bit_value(address);
+        let new_value = self.asm_rol(memory_value);
+        self.write_to_memory_8(address, new_value);
+    }
+
+    // Bitshift a memory location to the right by 1. If the LSB is set, set the carry flag
+    // TODO test
+    fn asm_lsr_memory(&mut self, address: u16) {
+        let memory_value = self.memory.get_8_bit_value(address);
+        let new_value = self.asm_lsr(memory_value);
+        self.write_to_memory_8(address, new_value);
+    }
+
+    // Bitshift a memory location to left right by 1.
+    // TODO test
+    fn asm_asl_memory(&mut self, address: u16) {
+        let memory_value = self.memory.get_8_bit_value(address);
+        let new_value = self.asm_asl(memory_value);
         self.write_to_memory_8(address, new_value);
     }
 
@@ -519,21 +705,13 @@ impl CPU {
     // Bitshift accumulator to the right by 1
     fn asm_lsr_accumulator(&mut self) {
         let accumulator = self.accumulator;
-        let shifted_accumulator = self.accumulator >> 1;
-        self.set_zero(shifted_accumulator);
-        self.set_sign(shifted_accumulator);
-        self.set_carry_bit((accumulator & 0x01) == 0x01);
-        self.accumulator = shifted_accumulator;
+        self.accumulator = self.asm_lsr(accumulator);
     }
 
-    // Bitshift accumulator to the right by 1
+    // Bitshift accumulator to the left by 1
     fn asm_asl_accumulator(&mut self) {
         let accumulator = self.accumulator;
-        let shifted_accumulator = self.accumulator << 1;
-        self.set_zero(shifted_accumulator);
-        self.set_sign(shifted_accumulator);
-        self.set_carry_bit((accumulator & 0x80) == 0x80);
-        self.accumulator = shifted_accumulator;
+        self.accumulator = self.asm_asl(accumulator);
     }
 
     // Start program execution at a value stored at a location in memory
@@ -543,7 +721,7 @@ impl CPU {
 
     // Return the program from an interrupt routine
     fn asm_rti(&mut self) {
-        self.status_register = self.pull_stack();
+        self.pull_status_from_stack();
         self.program_counter = self.pull_stack_16();
     }
 
@@ -557,6 +735,8 @@ impl CPU {
     // Pull accumulator from the stack
     fn asm_pla(&mut self) {
         let accumulator = self.pull_stack();
+        self.set_sign(accumulator);
+        self.set_zero(accumulator);
         self.accumulator = accumulator;
     }
 
@@ -606,10 +786,18 @@ impl CPU {
         self.branch(source);
     }
 
-    // Copies the X register to the stack and moves the stack pointer
+    // Branches on 'result minus'
+    // TODO test
+    fn asm_bmi(&mut self, source: u8) {
+        if !self.is_negative_set() { return; }
+
+        self.branch(source);
+    }
+
+    // Copies the X register to the stack pointer. This does not mean pushing the X value onto the stack
+    // TODO fix tests that assume this is supposed to do what it doesn't do
     fn asm_txs(&mut self) {
-        let x_register = self.x_register;
-        self.push_stack(x_register);
+        self.stack_pointer = self.x_register;
     }
 
     // Transfers the accumulator into index X
@@ -680,6 +868,16 @@ impl CPU {
         self.set_zero(new_memory_value);
     }
 
+    // ** Unofficial **
+    // Equivalent to a DEC then a CMP of the value
+    // TODO test
+    fn asm_dcp(&mut self, address: u16) {
+        self.asm_dec(address);
+
+        let value = self.memory.get_8_bit_value(address);
+        self.asm_cmp(value);
+    }
+
     // Branch on result not zero
     fn asm_bne(&mut self, source: u8) {
         if self.is_zero_set() { return; }
@@ -690,6 +888,23 @@ impl CPU {
     // Sets the operational mode to binary instead of decimal
     fn asm_cld(&mut self) {
         self.status_register &= !0x08;
+    }
+
+    // Sets the operational mode to decimal instead of binary
+    fn asm_sed(&mut self) {
+        self.status_register |= 0x08;
+    }
+
+    // Pushes the status register onto the stack
+    // TODO test
+    fn asm_php(&mut self) {
+        self.push_status_to_stack(false);
+    }
+
+    // Sets the status register with what is next to come off the stack
+    // TODO test
+    fn asm_plp(&mut self) {
+        self.pull_status_from_stack();
     }
 
     // Compare literal value with value stored in the x register
@@ -706,9 +921,46 @@ impl CPU {
         self.x_register = x_register;
     }
 
+    // Triggers an error interrupt
+    // TODO test
+    fn asm_brk(&mut self) {
+        let return_address = self.program_counter + 1;
+
+        self.push_stack_16(return_address);
+        self.set_brk_bit(true); // Is there also a "set interrupt" bit?
+        self.push_status_to_stack(false);
+
+        let error_handler_address = self.memory.get_16_bit_value(0xFFFE);
+        self.program_counter = error_handler_address;
+
+        panic!("BRK hit");
+    }
+
+    // Does nothing at all
+    // TODO test? Maybe? Maybe once I have accurate timings?
+    fn asm_nop(&self, _num_cycles: u8) {
+        // TODO burn specific number of cycles or something depending on how I have this work
+    }
+
     // Branches on 'result zero' - the last result having been zero
     fn asm_beq(&mut self, source: u8) {
         if !self.is_zero_set() { return; }
+
+        self.branch(source);
+    }
+
+    // Branches on 'overflow set'
+    // TODO test
+    fn asm_bvs(&mut self, source: u8) {
+        if !self.is_overflow_set() { return; }
+
+        self.branch(source);
+    }
+
+    // Branches on 'overflow clear'
+    // TODO test
+    fn asm_bvc(&mut self, source: u8) {
+        if self.is_overflow_set() { return; }
 
         self.branch(source);
     }

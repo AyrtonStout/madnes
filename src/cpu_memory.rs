@@ -56,7 +56,6 @@ impl CPUMemory {
             // "When a read from $2002 occurs, bit 7 [of the status register] is reset to 0 as are $2005 and $2006."
             // I think my handling of NMIs isn't very in-line with the real NES hardware. I reset bit 7 when I read for NMIs. So I don't reset it here
             // FIXME? Maybe it's still a good idea to clear the NMI bit here though... remains to be seen
-            println!("Reading PPU Status!");
             self.memory[0x2005] = 0;
             self.memory[0x2006] = 0;
         }
