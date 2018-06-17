@@ -65,7 +65,12 @@ impl PPU {
         } else {
             // TODO draw things at the appropriate times, not all at once
             if self.is_background_rendered() {
+//                panic!();
                 self.draw_background();
+            }
+
+            if self.is_background_rendered() || self.are_sprites_rendered() {
+                self.game_window.repaint();
             }
 
             self.set_vblank_status(true);
@@ -74,26 +79,24 @@ impl PPU {
     }
 
     fn draw_background(&mut self) {
+        let tiles_per_row = 32;
         let nametable_size: u16 = 960;
         let start_address = self.get_base_nametable_address();
-//        println!("Pattern num: {:X}", start_address);
 
         for offset in 0..nametable_size {
             let pattern_num = self.memory.get_8_bit_value(start_address + offset);
-//            println!("Pattern num: {:X}", pattern_num);
-            let pattern = self.get_pattern(pattern_num, false);
-            self.send_pattern_to_window(pattern);
-//            if pattern_num != 0x24 {
-//                println!("{:?}", pattern);
-//            }
+            let mut pattern = self.get_pattern(pattern_num, false);
+            pattern[3][3] = 2;
+            let start_x: u8 = ((offset % tiles_per_row) * 8) as u8;
+            let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
+            self.send_pattern_to_window(pattern, start_x, start_y);
         }
-//        panic!();
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8]) {
-        for y in 0..pattern.len() {
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8) {
+        for y in 0..pattern[0].len() {
             for x in 0..pattern.len() {
-                self.game_window.set_pixel_color(pattern[x][y], x as u8, y as u8);
+                self.game_window.set_pixel_color(pattern[x][y], start_x + x as u8, start_y + y as u8);
             }
         }
     }
