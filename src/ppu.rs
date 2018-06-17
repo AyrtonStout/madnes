@@ -1,4 +1,5 @@
 use ppu_memory::PPUMemory;
+use game_window::GameWindow;
 
 #[allow(dead_code)]
 pub struct PPU {
@@ -15,12 +16,14 @@ pub struct PPU {
     high_byte_write: bool, // Used by $2005 and $2006 to control which part of the buffer is written to
     vram_scroll_address: u16,
     vram_write_address: u16,
-    memory: PPUMemory
+    memory: PPUMemory,
+    game_window: GameWindow
 }
 
 impl PPU {
     pub fn new(io_registers: *mut u8) -> PPU {
         unsafe {
+//            let game_window = GameWindow::new();
             return PPU {
                 ppu_control_register: io_registers.offset(0),
                 ppu_mask_register: io_registers.offset(1),
@@ -35,7 +38,8 @@ impl PPU {
                 high_byte_write: true,
                 vram_scroll_address: 0,
                 vram_write_address: 0,
-                memory: PPUMemory::new()
+                memory: PPUMemory::new(),
+                game_window: GameWindow::new()
             }
         }
     }
@@ -43,15 +47,6 @@ impl PPU {
     //TODO I don't think the frame counter is actually incremented every clock tick. Sounds like it's more like every 4th tick or something
     pub fn tick(&mut self) {
         self.scanline_counter += 1;
-        if self.are_sprites_rendered() {
-            println!("Not drawing sprites!");
-            panic!("")
-        }
-
-        if self.is_background_rendered() {
-            println!("Not drawing background!");
-            panic!("")
-        }
 
         if self.scanline_counter < 20 {
             // We are in VBlank time and likely will do nothing
@@ -68,9 +63,38 @@ impl PPU {
         } else if self.scanline_counter < 261 {
             // TODO Scanline logic
         } else {
+            // TODO draw things at the appropriate times, not all at once
+            if self.is_background_rendered() {
+                self.draw_background();
+            }
+
             self.set_vblank_status(true);
-            // TODO Send NMI
             self.scanline_counter = 0;
+        }
+    }
+
+    fn draw_background(&mut self) {
+        let nametable_size: u16 = 960;
+        let start_address = self.get_base_nametable_address();
+//        println!("Pattern num: {:X}", start_address);
+
+        for offset in 0..nametable_size {
+            let pattern_num = self.memory.get_8_bit_value(start_address + offset);
+//            println!("Pattern num: {:X}", pattern_num);
+            let pattern = self.get_pattern(pattern_num, false);
+            self.send_pattern_to_window(pattern);
+//            if pattern_num != 0x24 {
+//                println!("{:?}", pattern);
+//            }
+        }
+//        panic!();
+    }
+
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8]) {
+        for y in 0..pattern.len() {
+            for x in 0..pattern.len() {
+                self.game_window.set_pixel_color(pattern[x][y], x as u8, y as u8);
+            }
         }
     }
 
@@ -82,10 +106,36 @@ impl PPU {
         }
     }
 
+    // An 8x8 sprite is composed of 8x16 bits. The first 8x8 set is added to the second 8x8 set to get 1 of 4 possible
+    // values (0 - 3), each corresponding to a particular color. Though somewhat wasteful on memory, this is represented as
+    // an 8x8 array of u8 to make the calling code simpler (no need for calling code to mask bits)
+    fn get_pattern(&self, pattern_num: u8, is_sprite_pattern: bool) -> [[u8; 8]; 8] {
+        let start_address = if is_sprite_pattern { self.get_sprite_pattern_table_address() } else { self.get_background_pattern_table_address() };
+        let sprite_size: u8 = 8; // This might not be the same for every game. There is a flag to determine this I think
+
+        let mut sprite = [[0u8; 8]; 8];
+        for byte_offset in 0..sprite_size {
+            // Each line of the sprite is composed of 2 different bytes. The second byte is offset 8 further down than the first. Grab these bytes
+            let pattern_address = start_address + byte_offset as u16 + (pattern_num as u16 * sprite_size as u16 * 2);
+//            println!("Pattern address: {:X}", pattern_address);
+            let low_byte = self.memory.get_8_bit_value(pattern_address);
+            let high_byte = self.memory.get_8_bit_value(pattern_address + 8);
+            for bit_offset in 0..8 {
+                // Now that we have our high and low bytes, combine them into a single sprite row so we can determine color
+                let mask = 1 << bit_offset;
+                let low_bit = if low_byte & mask != 0 { 1 } else { 0 };
+                let high_bit = if high_byte & mask != 0 { 2 } else { 0 };
+                sprite[byte_offset as usize][bit_offset as usize] = low_bit + high_bit;
+            }
+        }
+
+        return sprite;
+    }
+
     #[allow(dead_code)]
     fn get_sprite_pattern_table_address(&self) -> u16 {
         unsafe {
-            let bit_set: bool = (*(self.ppu_control_register) & 0b0000_1000) == 1;
+            let bit_set: bool = (*(self.ppu_control_register) & 0b0000_1000) != 0;
             if bit_set {
                 return 0x1000;
             } else {
@@ -98,7 +148,7 @@ impl PPU {
     #[allow(dead_code)]
     fn get_background_pattern_table_address(&self) -> u16 {
         unsafe {
-            let bit_set: bool = (*(self.ppu_control_register) & 0b0001_0000) == 1;
+            let bit_set: bool = (*(self.ppu_control_register) & 0b0001_0000) != 0;
             if bit_set {
                 return 0x1000;
             } else {
@@ -110,7 +160,7 @@ impl PPU {
     #[allow(dead_code)]
     fn using_16px_height_sprites(&self) -> bool {
         unsafe {
-            return (*(self.ppu_control_register) & 0b0010_0000) == 1;
+            return (*(self.ppu_control_register) & 0b0010_0000) != 0;
         }
     }
 
@@ -118,7 +168,7 @@ impl PPU {
     #[allow(dead_code)]
     fn is_background_to_left_edge(&self) -> bool {
         unsafe {
-            return (*(self.ppu_mask_register) & 0b0000_0010) == 1;
+            return (*(self.ppu_mask_register) & 0b0000_0010) != 0;
         }
     }
 
@@ -126,7 +176,7 @@ impl PPU {
     #[allow(dead_code)]
     fn are_sprites_to_left_edge(&self) -> bool {
         unsafe {
-            return (*(self.ppu_mask_register) & 0b0000_0100) == 1;
+            return (*(self.ppu_mask_register) & 0b0000_0100) != 0;
         }
     }
 
