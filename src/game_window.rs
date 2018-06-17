@@ -76,7 +76,8 @@ impl GameWindow {
             0 => Color::RGB(0, 0, 0),
             1 => Color::RGB(75, 75, 75),
             2 => Color::RGB(150, 150, 150),
-            _ => Color::RGB(255, 255, 255)
+            3 => Color::RGB(255, 255, 255),
+            _ => panic!("Encountered unexpected color value: {}", color)
         }
     }
 

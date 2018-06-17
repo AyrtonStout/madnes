@@ -52,6 +52,7 @@ impl PPU {
             // We are in VBlank time and likely will do nothing
         } else if self.scanline_counter == 20 {
             self.set_vblank_status(false);
+//            self.set_sprite0_hit(true);
 
             /* TODO from http://nesdev.com/2C02%20technical%20reference.TXT
             After 20 scanlines worth of time go by (since the VINT flag was set), the PPU starts to render scanlines. This first scanline is a dummy one;
@@ -65,8 +66,10 @@ impl PPU {
         } else {
             // TODO draw things at the appropriate times, not all at once
             if self.is_background_rendered() {
-//                panic!();
                 self.draw_background();
+            }
+            if self.are_sprites_rendered() {
+                self.draw_sprites();
             }
 
             if self.is_background_rendered() || self.are_sprites_rendered() {
@@ -75,7 +78,37 @@ impl PPU {
 
             self.set_vblank_status(true);
             self.scanline_counter = 0;
+            self.set_sprite0_hit(false);
         }
+    }
+
+    fn draw_sprites(&mut self) {
+        if self.using_16px_height_sprites() {
+            panic!("16px sprites are not yet supported!");
+        }
+
+        let num_sprites = 64; // Maximum number of sprites an NES game can display
+        let oam_entry_size = 4;
+        for offset in 0..num_sprites {
+            let start_address = offset * oam_entry_size;
+
+            // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
+            if self.object_attribute_memory[start_address] > 0xEF {
+                continue;
+            }
+
+            let y_offset = 0xEF - self.object_attribute_memory[start_address]; // NES renders with y = 0 at the bottom. SDL wants y = 0 at the top.
+
+            let x_offset = self.object_attribute_memory[start_address + 3];
+            let _sprite_flags = self.object_attribute_memory[start_address + 2];
+            // TODO sprite_flags determines color, priority, and whether or not the sprite is mirrored
+
+            let pattern_num = self.object_attribute_memory[start_address + 1] ;
+            let pattern = self.get_pattern(pattern_num, true);
+            self.send_pattern_to_window(pattern, x_offset, y_offset);
+        }
+        let thing = self.object_attribute_memory.to_vec();
+        println!("{:?}", thing);
     }
 
     fn draw_background(&mut self) {
@@ -135,7 +168,6 @@ impl PPU {
         return sprite;
     }
 
-    #[allow(dead_code)]
     fn get_sprite_pattern_table_address(&self) -> u16 {
         unsafe {
             let bit_set: bool = (*(self.ppu_control_register) & 0b0000_1000) != 0;
@@ -148,7 +180,6 @@ impl PPU {
     }
 
     // It seems like you shouldn't have to use two different bits to determine this (sprite vs background). But maybe sometimes you don't use one or the other?
-    #[allow(dead_code)]
     fn get_background_pattern_table_address(&self) -> u16 {
         unsafe {
             let bit_set: bool = (*(self.ppu_control_register) & 0b0001_0000) != 0;
@@ -236,9 +267,19 @@ impl PPU {
 //        println!("VBlank set to {}", is_set);
         unsafe {
             if is_set {
-                *self.ppu_status_register |= 0x80;
+                *self.ppu_status_register |= 0b1000_0000;
             } else {
-                *self.ppu_status_register &= !0x80;
+                *self.ppu_status_register &= !0b1000_0000;
+            }
+        }
+    }
+
+    fn set_sprite0_hit(&mut self, is_set: bool) {
+        unsafe {
+            if is_set {
+                *self.ppu_status_register |= 0b0100_0000;
+            } else {
+                *self.ppu_status_register &= !0b0100_0000;
             }
         }
     }
