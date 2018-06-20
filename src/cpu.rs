@@ -3,6 +3,7 @@ use cpu_memory::CPUMemory;
 use instruction_set::AddressingMode;
 use instruction_set::InstructionType;
 use ppu::PPU as PPU;
+use std::collections::linked_list::LinkedList;
 
 static STACK_POINTER_OFFSET: u16 = 0x100;
 
@@ -14,7 +15,8 @@ pub struct CPU {
     x_register: u8,
     y_register: u8,
     memory: CPUMemory,
-    ppu: *mut PPU
+    ppu: *mut PPU,
+    history: LinkedList<String> // Just used for debugging what the emulator has run
 }
 
 impl CPU {
@@ -27,7 +29,8 @@ impl CPU {
             x_register: 0,
             y_register: 0,
             memory: CPUMemory::new(),
-            ppu: 0 as *mut PPU // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
+            ppu: 0 as *mut PPU, // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
+            history: LinkedList::new()
         }
     }
 
@@ -49,11 +52,40 @@ impl CPU {
         let num_bytes: u8 = instruction.num_bytes;
 
         let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16 - 1);
+        self.history.push_back(instruction.name.to_string());
+        if self.history.len() > 100 {
+            self.history.pop_front();
+        }
 
-        // Some instructions (like BPL) seem to indicate that the program counter is incremented prior to the instruction's action
+        // The instruction counter is incremented prior to doing the action
         self.program_counter += num_bytes as u16;
 
         self.handle_instruction(opcode, instruction, instruction_data.as_slice());
+
+//        self.debug_check_for_instruction_sequence();
+    }
+
+    // Mostly used by me to see where in the super mario bros disassembly the emulator is getting to
+    #[allow(dead_code)]
+    fn debug_check_for_instruction_sequence(&mut self) {
+        let sequence = ["LDY", "LDA", "ORA", "CMP", "BEQ", "CMP", "BNE", "JMP"];
+
+        if self.history.len() < sequence.len() {
+            return;
+        }
+
+        let mut iter = self.history.iter().rev();
+
+        for i in 0..sequence.len() {
+            let expected = (&sequence[sequence.len() - i - 1]).to_lowercase();
+            let actual = iter.next().unwrap().to_lowercase();
+            if expected != actual {
+//                panic!();
+                return;
+            }
+        }
+
+        panic!("Sequence found!");
     }
 
     // NOTE: There is some tomfoolery possible here. A thing called 'Interrupt Hijacking'. Might have to implement
@@ -94,6 +126,7 @@ impl CPU {
     }
 
     fn handle_instruction(&mut self, opcode: u8, instruction: InstructionType, instruction_data: &[u8]) {
+//        println!("Name: {} Opcode: {:X} Data: {:?}", instruction.name, opcode, instruction_data);
         if instruction.addressing_mode == AddressingMode::Implied {
             match instruction.name.as_ref() {
                 "CLC" => self.asm_clc(),
@@ -210,7 +243,8 @@ impl CPU {
     // sometimes we might need to do extra things if we write to certain memory-mapped locations
     fn write_to_memory_8(&mut self, address: u16, new_value: u8) {
         self.memory.set_8_bit_value(address, new_value);
-        if address >= 0x2005 && address <= 0x2007 {
+
+        if address >= 0x2004 && address <= 0x2007 {
             unsafe {
                 (*self.ppu).write_to_register(address, new_value);
             }

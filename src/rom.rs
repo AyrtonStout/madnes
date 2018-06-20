@@ -16,6 +16,7 @@ pub fn read_file() -> Result<Rom, String> {
     let mut buffer = vec![0; 10];
 //    let mut file = File::open("Super Mario Bros 3 (E).nes").expect("Bad things");
     let mut file = File::open("Super Mario Bros. (JU).nes").expect("Bad things");
+//    let mut file = File::open("Zelda.nes").expect("Bad things");
 //    let mut file = File::open("Contra (USA).nes").expect("Bad things");
 
     file.read_to_end(&mut buffer).expect("More bad things");

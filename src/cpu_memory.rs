@@ -45,6 +45,14 @@ impl CPUMemory {
             let rom_byte = prg_rom[i];
             self.memory[0x8000 + i] = rom_byte;
         }
+
+        // FIXME this is another temporary solution. For ROMs with 1 prg ROM bank, just copy it to both banks
+        if prg_rom.len() == 0x4000 {
+            for i in 0..prg_rom.len() {
+                let rom_byte = prg_rom[i];
+                self.memory[0xC000 + i] = rom_byte;
+            }
+        }
     }
 
     pub fn get_reset_vector(&self) -> u16 {

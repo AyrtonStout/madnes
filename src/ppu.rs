@@ -6,7 +6,7 @@ pub struct PPU {
     ppu_control_register: *const u8, // 0x2000 Read-only
     ppu_mask_register: *const u8, // 0x2001 Read-only
     ppu_status_register: *mut u8, // 0x2002 Used by CPU to read status from PPU
-    spr_ram_address_register: *const u8, // 0x2003 Somehow used to load sprites?
+    spr_ram_address_register: *mut u8, // 0x2003 Somehow used to load sprites?
     spr_ram_io_register: *const u8, // 0x2004 Also somehow used to load sprites?
     vram_scroll_register: *const u8, // 0x2005 Probably the low byte for a vram read / write (Or maybe this is purely for scrolling?)
     vram_address_register: *const u8, // 0x2006 Probably the high byte for a vram read / write
@@ -19,6 +19,9 @@ pub struct PPU {
     memory: PPUMemory,
     game_window: GameWindow
 }
+
+const SCREEN_WIDTH: u8 = 255;
+const SCREEN_HEIGHT: u8 = 240;
 
 impl PPU {
     pub fn new(io_registers: *mut u8) -> PPU {
@@ -44,6 +47,10 @@ impl PPU {
         }
     }
 
+    pub fn init_chr_rom(&mut self, chr_rom: Vec<u8>) {
+        self.memory.init_chr_rom(chr_rom);
+    }
+
     //TODO I don't think the frame counter is actually incremented every clock tick. Sounds like it's more like every 4th tick or something
     pub fn tick(&mut self) {
         self.scanline_counter += 1;
@@ -52,7 +59,7 @@ impl PPU {
             // We are in VBlank time and likely will do nothing
         } else if self.scanline_counter == 20 {
             self.set_vblank_status(false);
-//            self.set_sprite0_hit(true);
+            self.set_sprite0_hit(true);
 
             /* TODO from http://nesdev.com/2C02%20technical%20reference.TXT
             After 20 scanlines worth of time go by (since the VINT flag was set), the PPU starts to render scanlines. This first scanline is a dummy one;
@@ -70,6 +77,7 @@ impl PPU {
             }
             if self.are_sprites_rendered() {
                 self.draw_sprites();
+//                self.debug_pattern_table();
             }
 
             if self.is_background_rendered() || self.are_sprites_rendered() {
@@ -82,33 +90,59 @@ impl PPU {
         }
     }
 
+    #[allow(dead_code)]
+    fn debug_pattern_table(&mut self) {
+        for i in 0x0..0x2000 {
+            if self.memory.get_8_bit_value(i) != 0 {
+                println!("Found something {:X}", i);
+                panic!(i);
+            }
+        }
+        println!("Sup");
+        let pattern_table_size = 255;
+        let pattern_size = 16;
+        for offset in 0..pattern_table_size {
+            let pattern = self.get_pattern(offset, true, false, false);
+            println!("{:X}", offset as u16 * pattern_size as u16);
+            for y in 0..8 {
+                for x in 0..8 {
+                    print!("{}", pattern[x][y]);
+                }
+                println!();
+            }
+            println!();
+        }
+//        panic!();
+    }
+
     fn draw_sprites(&mut self) {
         if self.using_16px_height_sprites() {
             panic!("16px sprites are not yet supported!");
         }
 
+//        println!("{:?}", self.object_attribute_memory.to_vec());
         let num_sprites = 64; // Maximum number of sprites an NES game can display
         let oam_entry_size = 4;
         for offset in 0..num_sprites {
             let start_address = offset * oam_entry_size;
 
+            let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
             // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
-            if self.object_attribute_memory[start_address] > 0xEF {
+            if y_offset > 0xEF {
                 continue;
             }
 
-            let y_offset = 0xEF - self.object_attribute_memory[start_address]; // NES renders with y = 0 at the bottom. SDL wants y = 0 at the top.
-
             let x_offset = self.object_attribute_memory[start_address + 3];
-            let _sprite_flags = self.object_attribute_memory[start_address + 2];
+            let sprite_flags = self.object_attribute_memory[start_address + 2];
+
+            let flip_x = (sprite_flags & 0b0100_0000) != 0;
+            let flip_y = (sprite_flags & 0b1000_0000) != 0;
             // TODO sprite_flags determines color, priority, and whether or not the sprite is mirrored
 
-            let pattern_num = self.object_attribute_memory[start_address + 1] ;
-            let pattern = self.get_pattern(pattern_num, true);
+            let pattern_num = self.object_attribute_memory[start_address + 1];
+            let pattern = self.get_pattern(pattern_num, true, flip_x, flip_y);
             self.send_pattern_to_window(pattern, x_offset, y_offset);
         }
-        let thing = self.object_attribute_memory.to_vec();
-        println!("{:?}", thing);
     }
 
     fn draw_background(&mut self) {
@@ -118,8 +152,7 @@ impl PPU {
 
         for offset in 0..nametable_size {
             let pattern_num = self.memory.get_8_bit_value(start_address + offset);
-            let mut pattern = self.get_pattern(pattern_num, false);
-            pattern[3][3] = 2;
+            let pattern = self.get_pattern(pattern_num, false, false, false);
             let start_x: u8 = ((offset % tiles_per_row) * 8) as u8;
             let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
             self.send_pattern_to_window(pattern, start_x, start_y);
@@ -129,12 +162,18 @@ impl PPU {
     fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8) {
         for y in 0..pattern[0].len() {
             for x in 0..pattern.len() {
-                self.game_window.set_pixel_color(pattern[x][y], start_x + x as u8, start_y + y as u8);
+                let drawn_x = start_x as u16 + x as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
+                let drawn_y = start_y as u16 + y as u16;
+                if drawn_x > SCREEN_WIDTH as u16 || drawn_y > SCREEN_HEIGHT as u16 {
+                    continue;
+                }
+
+                // And now that we know we are good, cast back down
+                self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
             }
         }
     }
 
-    #[allow(dead_code)]
     fn get_base_nametable_address(&self) -> u16 {
         unsafe {
             let bit_values: u8 = *(self.ppu_control_register) & 0b0000_0011;
@@ -145,7 +184,7 @@ impl PPU {
     // An 8x8 sprite is composed of 8x16 bits. The first 8x8 set is added to the second 8x8 set to get 1 of 4 possible
     // values (0 - 3), each corresponding to a particular color. Though somewhat wasteful on memory, this is represented as
     // an 8x8 array of u8 to make the calling code simpler (no need for calling code to mask bits)
-    fn get_pattern(&self, pattern_num: u8, is_sprite_pattern: bool) -> [[u8; 8]; 8] {
+    fn get_pattern(&self, pattern_num: u8, is_sprite_pattern: bool, flip_x: bool, flip_y: bool) -> [[u8; 8]; 8] {
         let start_address = if is_sprite_pattern { self.get_sprite_pattern_table_address() } else { self.get_background_pattern_table_address() };
         let sprite_size: u8 = 8; // This might not be the same for every game. There is a flag to determine this I think
 
@@ -161,7 +200,13 @@ impl PPU {
                 let mask = 1 << bit_offset;
                 let low_bit = if low_byte & mask != 0 { 1 } else { 0 };
                 let high_bit = if high_byte & mask != 0 { 2 } else { 0 };
-                sprite[byte_offset as usize][bit_offset as usize] = low_bit + high_bit;
+
+                // Though it doesn't make a lot of sense to me why, perhaps a bug somewhere else in the emulator,
+                // we now default the sprites to horizontally flip so that they look normal
+                let x = if flip_x { bit_offset } else { 7u8 - bit_offset };
+                let y = if flip_y { byte_offset } else { byte_offset };
+
+                sprite[x as usize][y as usize] = low_bit + high_bit;
             }
         }
 
@@ -233,7 +278,13 @@ impl PPU {
     }
 
     pub fn write_to_register(&mut self, address: u16, value: u8) {
-        if address == 0x2005 {
+        if address == 0x2004 {
+            unsafe {
+                let oam_address =  *self.spr_ram_address_register;
+                self.object_attribute_memory[oam_address as usize] = value;
+                *self.spr_ram_address_register = oam_address.wrapping_add(1);
+            }
+        } else if address == 0x2005 {
             if self.high_byte_write {
                 self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
             } else {

@@ -13,12 +13,16 @@ impl PPUMemory {
         }
     }
 
-    pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
+    pub fn init_chr_rom(&mut self, chr_rom: Vec<u8>) {
+        if chr_rom.len() > 0x2000 {
+            panic!("This ROM isn't supported! It has too much CHR_ROM!");
+        }
+
         // TODO this will need to be more sophisticated with a ROM that requires bank switching. Should handle this with pointers to different banks
         // TODO can try to use https://stackoverflow.com/a/28224758 here instead of looping
-        for i in 0..prg_rom.len() {
-            let rom_byte = prg_rom[i];
-            self.memory[0x8000 + i] = rom_byte;
+        for i in 0..chr_rom.len() {
+            let rom_byte = chr_rom[i];
+            self.memory[0x0000 + i] = rom_byte;
         }
     }
 
