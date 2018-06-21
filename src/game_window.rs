@@ -101,6 +101,10 @@ impl GameWindow {
     pub fn set_pixel_color(&mut self, color: u8, x: u8, y: u8) {
         self.things_to_draw[x as usize][y as usize] = color;
     }
+
+    pub fn is_pixel_transparent(&self, x: u8, y: u8) -> bool {
+        return self.things_to_draw[x as usize][y as usize] == 0;
+    }
 }
 
 

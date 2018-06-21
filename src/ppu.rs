@@ -128,7 +128,9 @@ impl PPU {
 //        println!("{:?}", self.object_attribute_memory.to_vec());
         let num_sprites = 64; // Maximum number of sprites an NES game can display
         let oam_entry_size = 4;
-        for offset in 0..num_sprites {
+        // Now iterate through all sprites backwards.
+        // Backwards because earlier sprites have priority, and need to overwrite later sprites
+        for offset in (0..num_sprites).rev() {
             let start_address = offset * oam_entry_size;
 
             let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
@@ -142,11 +144,11 @@ impl PPU {
 
             let flip_x = (sprite_flags & 0b0100_0000) != 0;
             let flip_y = (sprite_flags & 0b1000_0000) != 0;
-            // TODO sprite_flags determines color, priority, and whether or not the sprite is mirrored
+            let draw_on_transparent = (sprite_flags & 0b0010_0000) != 0;
 
             let pattern_num = self.object_attribute_memory[start_address + 1];
             let pattern = self.get_pattern(pattern_num, true, flip_x, flip_y);
-            self.send_pattern_to_window(pattern, x_offset, y_offset);
+            self.send_pattern_to_window(pattern, x_offset, y_offset, true, draw_on_transparent);
         }
     }
 
@@ -160,11 +162,11 @@ impl PPU {
             let pattern = self.get_pattern(pattern_num, false, false, false);
             let start_x: u8 = ((offset % tiles_per_row) * 8) as u8;
             let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
-            self.send_pattern_to_window(pattern, start_x, start_y);
+            self.send_pattern_to_window(pattern, start_x, start_y, false, false);
         }
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8) {
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8, draw_transparent: bool, draw_on_transparent: bool) {
         for y in 0..pattern[0].len() {
             for x in 0..pattern.len() {
                 let drawn_x = start_x as u16 + x as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
@@ -173,8 +175,15 @@ impl PPU {
                     continue;
                 }
 
-                // And now that we know we are good, cast back down
-                self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
+                // Don't draw a transparent pixel if we aren't told to draw transparent pixels (aka we're a sprite, don't draw over a background)
+                if pattern[x][y] == 0 && draw_transparent {
+                    continue;
+                }
+
+                // Now draw our pixel, if the background doesn't have higher priority than us
+                if draw_on_transparent || self.game_window.is_pixel_transparent(x as u8, y as u8) {
+                    self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
+                }
             }
         }
     }
