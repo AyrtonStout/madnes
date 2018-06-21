@@ -1,6 +1,7 @@
 extern crate sdl2;
 use sdl2::Sdl;
 use sdl2::pixels::Color;
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
@@ -11,9 +12,12 @@ use sdl2::keyboard::Keycode;
 pub struct GameWindow {
     things_to_draw: [[u8; 240]; 256],
     canvas: Canvas<Window>,
-    scaling: u8,
     pub sdl_context: Sdl
 }
+
+const SCREEN_WIDTH: u16 = 256;
+const SCREEN_HEIGHT: u16 = 240;
+const SCALING: u8 = 3;
 
 #[allow(dead_code)]
 impl GameWindow {
@@ -21,41 +25,31 @@ impl GameWindow {
 
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
-        let scaling: u8 = 3;
 
-        let width = 256 * scaling as u32;
-        let height = 240 * scaling as u32;
-        let window = video_subsystem.window("MadNes", width, height)
+        let window = video_subsystem.window("MadNes", SCREEN_WIDTH as u32 * SCALING as u32, SCREEN_HEIGHT as u32 * SCALING as u32)
             .position_centered()
             .opengl()
             .build()
             .unwrap();
 
         let mut canvas = window.into_canvas().build().unwrap();
+        canvas.set_scale(SCALING as f32, SCALING as f32).unwrap();
+
+        let things_to_draw = [[0u8; 240]; 256];
 
         canvas.present();
 
         return GameWindow {
-            things_to_draw: [[0u8; 240]; 256], // TODO make it a color
+            things_to_draw, // TODO make it a color
             canvas,
-            scaling,
             sdl_context
         }
     }
 
     pub fn repaint(&mut self) {
-//        println!("Start paint!");
-//        self.canvas.clear();
-        for y in 0..self.things_to_draw[0].len() {
-            for x in 0..self.things_to_draw.len() {
-                let color_num = self.things_to_draw[x][y];
-                let color = self.get_color(color_num);
-                let scaling = self.scaling as i32;
-                self.canvas.set_draw_color(color);
-                self.canvas.fill_rect(Rect::new(x as i32 * scaling, y as i32 * scaling,
-                                                1 * scaling as u32, 1 * scaling as u32)).expect("Hello");
-            }
-        }
+        self.canvas.clear();
+
+        self.create_texture();
         self.canvas.present();
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
@@ -68,7 +62,29 @@ impl GameWindow {
                 _ => { }
             }
         }
-//        println!("Stop paint!");
+    }
+
+    fn create_texture(&mut self) {
+        let texture_creator = self.canvas.texture_creator();
+        let width = 256;
+        let height = 240;
+
+        let mut texture = texture_creator.create_texture_streaming(
+            PixelFormatEnum::RGB24, width, height).unwrap();
+
+        texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+            for y in 0..240 {
+                for x in 0..255 {
+                    let offset = x*3 + y*pitch;
+                    let color = self.get_color(self.things_to_draw[x][y]);
+                    buffer[offset] = color.r;
+                    buffer[offset + 1] = color.g;
+                    buffer[offset + 2] = color.b;
+                }
+            }
+        }).unwrap();
+
+        self.canvas.copy(&texture, None, Some(Rect::new(0, 0, width, height))).unwrap();
     }
 
     pub fn get_color(&self, color: u8) -> Color {

@@ -1,5 +1,6 @@
 use ppu_memory::PPUMemory;
 use game_window::GameWindow;
+//use std::time::Instant;
 
 #[allow(dead_code)]
 pub struct PPU {
@@ -81,7 +82,11 @@ impl PPU {
             }
 
             if self.is_background_rendered() || self.are_sprites_rendered() {
+//                let start = Instant::now();
                 self.game_window.repaint();
+//                let end = Instant::now();
+//                let elapsed: u64 = end.duration_since(start).subsec_nanos() as u64 / 1000 / 1000;
+//                println!("{:?}", elapsed);
             }
 
             self.set_vblank_status(true);
