@@ -17,6 +17,7 @@ pub struct PPU {
     high_byte_write: bool, // Used by $2005 and $2006 to control which part of the buffer is written to
     vram_scroll_address: u16,
     vram_write_address: u16,
+    fine_grained_x_scroll: u8,
     memory: PPUMemory,
     game_window: GameWindow
 }
@@ -42,6 +43,7 @@ impl PPU {
                 high_byte_write: true,
                 vram_scroll_address: 0,
                 vram_write_address: 0,
+                fine_grained_x_scroll: 0,
                 memory: PPUMemory::new(),
                 game_window: GameWindow::new()
             }
@@ -89,7 +91,8 @@ impl PPU {
 //                println!("{:?}", elapsed);
             }
 
-            println!("Scroll: {:X} Other: {:X} Coarse: {:X}", self.get_scroll(), self.vram_scroll_address, self.get_coarse_x());
+            println!("Scroll: {:X} Other: {:X} Coarse: {:X} Fine: {:X}",
+                     self.get_scroll(), self.vram_scroll_address, self.get_coarse_x(), self.fine_grained_x_scroll);
 
             self.set_vblank_status(true);
             self.scanline_counter = 0;
@@ -299,7 +302,10 @@ impl PPU {
     }
 
     pub fn write_to_register(&mut self, address: u16, value: u8) {
-        if address == 0x2004 {
+        if address == 0x2000 {
+            self.vram_write_address = self.vram_write_address & 0b1111_0011_1111_1111;
+            self.vram_write_address |= ((value & 0x0000_0011) as u16) << 10;
+        } else if address == 0x2004 {
             unsafe {
                 let oam_address =  *self.spr_ram_address_register;
                 self.object_attribute_memory[oam_address as usize] = value;
@@ -307,19 +313,30 @@ impl PPU {
             }
         } else if address == 0x2005 {
             println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
+            // This register is only 15 bits for some reason. So wipe out the top-most bit in either path
             if self.high_byte_write {
-                self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
+                self.vram_write_address = self.vram_write_address & 0b0000_1100_0001_1111;
+                self.vram_write_address |= ((value & 0b0000_0111) as u16) << 12;
+                self.vram_write_address |= ((value & 0b1111_1000) as u16) << 5;
+//                self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
             } else {
-                self.vram_scroll_address = (self.vram_scroll_address & 0xFF00) | (value as u16);
+                self.fine_grained_x_scroll = value & 0b0000_0111;
+                self.vram_write_address = self.vram_write_address & 0b0111_1111_1110_0000;
+                self.vram_write_address |= (value as u16) >> 3;
+//                self.vram_scroll_address = (self.vram_scroll_address & 0xFF00) | (value as u16);
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2006 {
             println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.vram_write_address = ((value as u16) << 8) | (self.vram_write_address & 0x00FF);
+                // This write will reset the top-most byte of this 15 (not a typo) bit register
+                self.vram_write_address = self.vram_write_address & 0b0011_1111_1111_1111;
             } else {
                 self.vram_write_address = (self.vram_write_address & 0xFF00) | (value as u16);
+                self.vram_scroll_address = self.vram_write_address;
             }
+
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2007 {
             self.memory.set_8_bit_value(self.vram_write_address, value);
