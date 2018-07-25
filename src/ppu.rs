@@ -89,6 +89,8 @@ impl PPU {
 //                println!("{:?}", elapsed);
             }
 
+            println!("Scroll: {:X} Other: {:X} Coarse: {:X}", self.get_scroll(), self.vram_scroll_address, self.get_coarse_x());
+
             self.set_vblank_status(true);
             self.scanline_counter = 0;
             self.set_sprite0_hit(false);
@@ -250,6 +252,12 @@ impl PPU {
         }
     }
 
+    fn get_scroll(&self) -> u8 {
+        unsafe {
+            return *(self.vram_scroll_register);
+        }
+    }
+
     #[allow(dead_code)]
     fn using_16px_height_sprites(&self) -> bool {
         unsafe {
@@ -286,7 +294,6 @@ impl PPU {
     }
 
     // CPU needs to call this whenever it reads from 0x2002
-    #[allow(dead_code)]
     pub fn status_register_read(&mut self) {
         self.high_byte_write = true;
     }
@@ -299,6 +306,7 @@ impl PPU {
                 *self.spr_ram_address_register = oam_address.wrapping_add(1);
             }
         } else if address == 0x2005 {
+            println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
             } else {
@@ -306,6 +314,7 @@ impl PPU {
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2006 {
+            println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.vram_write_address = ((value as u16) << 8) | (self.vram_write_address & 0x00FF);
             } else {
@@ -349,6 +358,9 @@ impl PPU {
         }
     }
 
+    fn get_coarse_x(&self) -> u16 {
+        return self.vram_scroll_address & 0b0000_0000_0001_1111;
+    }
 }
 
 #[cfg(test)]

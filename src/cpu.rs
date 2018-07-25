@@ -47,7 +47,7 @@ impl CPU {
         self.handle_nmi();
 
         let memory_start = self.program_counter;
-        let opcode: u8 = self.memory.get_8_bit_value(memory_start);
+        let opcode: u8 = self.read_from_memory_8(memory_start);
         let instruction = get_instruction(opcode);
         let num_bytes: u8 = instruction.num_bytes;
 
@@ -205,7 +205,7 @@ impl CPU {
             || instruction.addressing_mode == AddressingMode::Relative {
             source_value = instruction_data[0];
         } else {
-            source_value = self.memory.get_8_bit_value(source_address);
+            source_value = self.read_from_memory_8(source_address);
         }
         match instruction.name.as_ref() {
             "ADC" => { self.asm_adc(source_value); },
@@ -251,6 +251,18 @@ impl CPU {
         } else if address == 0x4014 {
             self.perform_dma(new_value);
         }
+    }
+
+    fn read_from_memory_8(&mut self, address: u16) -> u8 {
+        let memory = self.memory.get_8_bit_value(address);
+
+        if address == 0x2002 {
+            unsafe {
+                (*self.ppu).status_register_read();
+            }
+        }
+
+        return memory;
     }
 
     // DMA sends 256 bytes of sprite data to the PPU. The offset determines which address to start at, in 256 byte increments
@@ -324,8 +336,8 @@ impl CPU {
     fn get_pre_indexed_indirect_address(&mut self, zero_page_address: u8) -> u16 {
         let address = zero_page_address.wrapping_add(self.x_register);
         return if address == 0xFF {
-            let low_byte = self.memory.get_8_bit_value(0xFF);
-            let high_byte = self.memory.get_8_bit_value(0x00);
+            let low_byte = self.read_from_memory_8(0xFF);
+            let high_byte = self.read_from_memory_8(0x00);
             CPU::convert_to_address(&[low_byte, high_byte])
         } else {
             self.memory.get_16_bit_value(address as u16)
@@ -335,8 +347,8 @@ impl CPU {
     fn get_post_indexed_indirect_address(&mut self, zero_page_address: u8) -> u16 {
         // TODO instead of having this (and pre-indexed) both do this check, add a function to CPUMemory to get a zero-page address
         let address = if zero_page_address == 0xFF {
-            let low_byte = self.memory.get_8_bit_value(0xFF);
-            let high_byte = self.memory.get_8_bit_value(0x00);
+            let low_byte = self.read_from_memory_8(0xFF);
+            let high_byte = self.read_from_memory_8(0x00);
             CPU::convert_to_address(&[low_byte, high_byte])
         } else {
             self.memory.get_16_bit_value(zero_page_address as u16)
@@ -382,7 +394,7 @@ impl CPU {
     fn pull_stack(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let stack_address: u16 = self.stack_pointer as u16 + STACK_POINTER_OFFSET;
-        return self.memory.get_8_bit_value(stack_address);
+        return self.read_from_memory_8(stack_address);
     }
 
     fn pull_stack_16(&mut self) -> u16 {
@@ -519,7 +531,7 @@ impl CPU {
 
     // Increment the value stored at a memory location
     fn asm_inc(&mut self, address: u16) {
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_from_memory_8(address);
         let new_memory_value = memory_value.wrapping_add(1);
         self.write_to_memory_8(address, new_memory_value);
         self.set_sign(new_memory_value);
@@ -532,7 +544,7 @@ impl CPU {
     fn asm_isb(&mut self, address: u16) {
         self.asm_inc(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_sbc(value);
     }
 
@@ -542,7 +554,7 @@ impl CPU {
     fn asm_slo(&mut self, address: u16) {
         self.asm_asl_memory(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_ora(value);
     }
 
@@ -552,7 +564,7 @@ impl CPU {
     fn asm_rla(&mut self, address: u16) {
         self.asm_rol_memory(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_and(value);
     }
 
@@ -562,7 +574,7 @@ impl CPU {
     fn asm_rra(&mut self, address: u16) {
         self.asm_ror_memory(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_adc(value);
     }
 
@@ -572,7 +584,7 @@ impl CPU {
     fn asm_sre(&mut self, address: u16) {
         self.asm_lsr_memory(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_eor(value);
     }
 
@@ -681,14 +693,14 @@ impl CPU {
 
     // Bitshift a memory location to the right by 1, making the MSB the value of the current carry. If LSB is set, set the carry flag
     fn asm_ror_memory(&mut self, address: u16) {
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_from_memory_8(address);
         let new_value = self.asm_ror(memory_value);
         self.write_to_memory_8(address, new_value);
     }
 
     // Bitshift a memory location to the left by 1, making the LSB the value of the current carry. If MSB is set, set the carry flag
     fn asm_rol_memory(&mut self, address: u16) {
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_from_memory_8(address);
         let new_value = self.asm_rol(memory_value);
         self.write_to_memory_8(address, new_value);
     }
@@ -696,7 +708,7 @@ impl CPU {
     // Bitshift a memory location to the right by 1. If the LSB is set, set the carry flag
     // TODO test
     fn asm_lsr_memory(&mut self, address: u16) {
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_from_memory_8(address);
         let new_value = self.asm_lsr(memory_value);
         self.write_to_memory_8(address, new_value);
     }
@@ -704,7 +716,7 @@ impl CPU {
     // Bitshift a memory location to left right by 1.
     // TODO test
     fn asm_asl_memory(&mut self, address: u16) {
-        let memory_value = self.memory.get_8_bit_value(address);
+        let memory_value = self.read_from_memory_8(address);
         let new_value = self.asm_asl(memory_value);
         self.write_to_memory_8(address, new_value);
     }
@@ -895,7 +907,7 @@ impl CPU {
 
     // Decrements the value at a memory location by 1
     fn asm_dec(&mut self, address: u16) {
-        let memory_value: u8 = self.memory.get_8_bit_value(address);
+        let memory_value: u8 = self.read_from_memory_8(address);
         let new_memory_value = memory_value.wrapping_sub(1);
         self.write_to_memory_8(address, new_memory_value);
         self.set_sign(new_memory_value);
@@ -908,7 +920,7 @@ impl CPU {
     fn asm_dcp(&mut self, address: u16) {
         self.asm_dec(address);
 
-        let value = self.memory.get_8_bit_value(address);
+        let value = self.read_from_memory_8(address);
         self.asm_cmp(value);
     }
 
