@@ -51,6 +51,7 @@ impl GameWindow {
 
         self.create_texture();
         self.canvas.present();
+        self.things_to_draw = [[0u8; 240]; 256];
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
 

@@ -18,7 +18,8 @@ pub struct PPU {
     vram_scroll_address: u16,
     vram_write_address: u16,
     memory: PPUMemory,
-    game_window: GameWindow
+    game_window: GameWindow,
+    frame_skip: u8
 }
 
 const SCREEN_WIDTH: u8 = 255;
@@ -27,7 +28,6 @@ const SCREEN_HEIGHT: u8 = 240;
 impl PPU {
     pub fn new(io_registers: *mut u8) -> PPU {
         unsafe {
-//            let game_window = GameWindow::new();
             return PPU {
                 ppu_control_register: io_registers.offset(0),
                 ppu_mask_register: io_registers.offset(1),
@@ -43,7 +43,8 @@ impl PPU {
                 vram_scroll_address: 0,
                 vram_write_address: 0,
                 memory: PPUMemory::new(),
-                game_window: GameWindow::new()
+                game_window: GameWindow::new(),
+                frame_skip: 0
             }
         }
     }
@@ -59,6 +60,7 @@ impl PPU {
         if self.scanline_counter < 20 {
             // We are in VBlank time and likely will do nothing
         } else if self.scanline_counter == 20 {
+            println!("Starting new frame!");
             self.set_vblank_status(false);
             self.set_sprite0_hit(true);
 
@@ -70,26 +72,24 @@ impl PPU {
             render pipeline, since it takes 256 cc's worth of time to determine which objects are in range or not for any particular scanline.
             */
         } else if self.scanline_counter < 261 {
-            // TODO Scanline logic
+            if self.frame_skip != 0 {
+                return;
+            }
+            // The screen height is 240, one scanline per pixel. Start at 0 and work up to 240 (so we subtract the previous 21 scanlines from this value)
+            let scanline_height = (self.scanline_counter - 21) as u8;
+            self.draw_scanline(scanline_height);
         } else {
-            // TODO draw things at the appropriate times, not all at once
-            if self.is_background_rendered() {
-                self.draw_background();
-            }
-            if self.are_sprites_rendered() {
-                self.draw_sprites();
-//                self.debug_pattern_table();
-            }
-
             if self.is_background_rendered() || self.are_sprites_rendered() {
 //                let start = Instant::now();
-                self.game_window.repaint();
-//                let end = Instant::now();
-//                let elapsed: u64 = end.duration_since(start).subsec_nanos() as u64 / 1000 / 1000;
-//                println!("{:?}", elapsed);
+                if self.frame_skip <= 0 {
+                    self.game_window.repaint();
+                    self.frame_skip = 10;
+                } else {
+                    self.frame_skip -= 1;
+                }
             }
 
-            println!("Scroll: {:X} Other: {:X} Coarse: {:X}", self.get_scroll(), self.vram_scroll_address, self.get_coarse_x());
+//            println!("Scroll: {:X} Other: {:X} Coarse: {:X}", self.get_scroll(), self.vram_scroll_address, self.get_coarse_x());
 
             self.set_vblank_status(true);
             self.scanline_counter = 0;
@@ -105,7 +105,6 @@ impl PPU {
                 panic!(i);
             }
         }
-        println!("Sup");
         let pattern_table_size = 255;
         let pattern_size = 16;
         for offset in 0..pattern_table_size {
@@ -122,7 +121,19 @@ impl PPU {
 //        panic!();
     }
 
-    fn draw_sprites(&mut self) {
+    fn draw_scanline(&mut self, line_num: u8) {
+        // TODO only the first 8 sprites should be drawn and a sprite overflow flag should be set
+        // https://wiki.nesdev.com/w/index.php/Sprite_overflow_games
+        if self.are_sprites_rendered() {
+            self.draw_sprites(line_num);
+        }
+        if self.is_background_rendered() {
+            self.draw_background(line_num);
+        }
+
+    }
+
+    fn draw_sprites(&mut self, line_num: u8) {
         if self.using_16px_height_sprites() {
             panic!("16px sprites are not yet supported!");
         }
@@ -137,7 +148,8 @@ impl PPU {
 
             let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
             // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
-            if y_offset > 0xEF {
+            // Otherwise, check if the sprite will be rendered by the current scan line's line height
+            if y_offset < line_num || y_offset >= line_num + 8 {
                 continue;
             }
 
@@ -146,46 +158,56 @@ impl PPU {
 
             let flip_x = (sprite_flags & 0b0100_0000) != 0;
             let flip_y = (sprite_flags & 0b1000_0000) != 0;
-            let draw_on_transparent = (sprite_flags & 0b0010_0000) != 0;
+            let force_draw = (sprite_flags & 0b0010_0000) == 0;
 
             let pattern_num = self.object_attribute_memory[start_address + 1];
             let pattern = self.get_pattern(pattern_num, true, flip_x, flip_y);
-            self.send_pattern_to_window(pattern, x_offset, y_offset, true, draw_on_transparent);
+
+            // Check for sprite 0 hit
+            if offset == 0 && !self.is_sprite0_hit() {
+                self.check_sprite0_hit();
+            }
+
+            self.send_pattern_to_window(pattern, x_offset, y_offset, line_num,true, force_draw);
         }
     }
 
-    fn draw_background(&mut self) {
+    fn draw_background(&mut self, line_num: u8) {
         let tiles_per_row = 32;
         let nametable_size: u16 = 960;
         let start_address = self.get_base_nametable_address();
 
         for offset in 0..nametable_size {
+            // FIXME I should be able to instead modify the loop to only iterate over things being drawn, but that hurts my head right now
+            let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
+            if start_y < line_num || start_y >= line_num + 8 {
+                continue;
+            }
+
             let pattern_num = self.memory.get_8_bit_value(start_address + offset);
             let pattern = self.get_pattern(pattern_num, false, false, false);
             let start_x: u8 = ((offset % tiles_per_row) * 8) as u8;
-            let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
-            self.send_pattern_to_window(pattern, start_x, start_y, false, false);
+            self.send_pattern_to_window(pattern, start_x, start_y, line_num, false, false);
         }
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8, draw_transparent: bool, draw_on_transparent: bool) {
-        for y in 0..pattern[0].len() {
-            for x in 0..pattern.len() {
-                let drawn_x = start_x as u16 + x as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
-                let drawn_y = start_y as u16 + y as u16;
-                if drawn_x > SCREEN_WIDTH as u16 || drawn_y > SCREEN_HEIGHT as u16 {
-                    continue;
-                }
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8, line_num: u8, draw_transparent: bool, force_draw: bool) {
+        let y: usize = (start_y - line_num) as usize; // We only draw one scanline of the pattern. That scanline number is the y value of the sprite
+        for x in 0..pattern.len() {
+            let drawn_x = start_x as u16 + x as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
+            let drawn_y = start_y as u16 + y as u16;
+            if drawn_x > SCREEN_WIDTH as u16 || drawn_y >= SCREEN_HEIGHT as u16 {
+                continue;
+            }
 
-                // Don't draw a transparent pixel if we aren't told to draw transparent pixels (aka we're a sprite, don't draw over a background)
-                if pattern[x][y] == 0 && draw_transparent {
-                    continue;
-                }
+            // Don't draw a transparent pixel if we aren't told to draw transparent pixels
+            if pattern[x][y] == 0 && draw_transparent {
+                continue;
+            }
 
-                // Now draw our pixel, if the background doesn't have higher priority than us
-                if draw_on_transparent || self.game_window.is_pixel_transparent(x as u8, y as u8) {
-                    self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
-                }
+            // Now draw our pixel, if the background doesn't have higher priority than us
+            if force_draw || self.game_window.is_pixel_transparent(drawn_x as u8, drawn_y as u8) {
+                self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
             }
         }
     }
@@ -306,7 +328,7 @@ impl PPU {
                 *self.spr_ram_address_register = oam_address.wrapping_add(1);
             }
         } else if address == 0x2005 {
-            println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
+//            println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
             } else {
@@ -314,7 +336,7 @@ impl PPU {
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2006 {
-            println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
+//            println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.vram_write_address = ((value as u16) << 8) | (self.vram_write_address & 0x00FF);
             } else {
@@ -345,6 +367,16 @@ impl PPU {
             } else {
                 *self.ppu_status_register &= !0b1000_0000;
             }
+        }
+    }
+
+    fn check_sprite0_hit(&mut self) {
+
+    }
+
+    fn is_sprite0_hit(&self) -> bool {
+        unsafe {
+            return (*self.ppu_status_register & 0b0100_0000) != 0;
         }
     }
 
