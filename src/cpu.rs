@@ -14,6 +14,8 @@ pub struct CPU {
     accumulator: u8,
     x_register: u8,
     y_register: u8,
+    remaining_clock_cycles: i8,
+    current_instruction: Option<InstructionType>,
     memory: CPUMemory,
     ppu: *mut PPU,
     history: LinkedList<String> // Just used for debugging what the emulator has run
@@ -28,6 +30,8 @@ impl CPU {
             accumulator: 0,
             x_register: 0,
             y_register: 0,
+            remaining_clock_cycles: 0,
+            current_instruction: None,
             memory: CPUMemory::new(),
             ppu: 0 as *mut PPU, // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
             history: LinkedList::new()
@@ -44,23 +48,35 @@ impl CPU {
     }
 
     pub fn tick(&mut self) {
-        self.handle_nmi();
+        self.remaining_clock_cycles -= 1;
 
-        let memory_start = self.program_counter;
-        let opcode: u8 = self.read_from_memory_8(memory_start);
-        let instruction = get_instruction(opcode);
-        let num_bytes: u8 = instruction.num_bytes;
+        if self.remaining_clock_cycles > 0 { // The instruction takes multiple cycles to finish. Keep waiting
+            return;
+        } else if self.remaining_clock_cycles == 0 { // Instruction is finished. Execute it
+            // TODO bake the opcode into the InstructionType, and have handle_instruction take care of all of this nonsense
+            let memory_start = self.program_counter;
+            let opcode: u8 = self.read_from_memory_8(memory_start);
+            // The instruction counter is incremented prior to doing the action
+            let num_bytes = self.current_instruction.unwrap().num_bytes;
+            let instruction_data: Vec<u8> = self.memory.get_memory_range(self.program_counter + 1, num_bytes as u16 - 1);
 
-        let instruction_data: Vec<u8> = self.memory.get_memory_range(memory_start + 1, num_bytes as u16 - 1);
-        self.history.push_back(instruction.name.to_string());
-        if self.history.len() > 100 {
-            self.history.pop_front();
+            self.program_counter += num_bytes as u16;
+
+            let instruction = self.current_instruction.unwrap();
+            self.handle_instruction(opcode, instruction, instruction_data.as_slice());
+        } else { // Our last instruction finished. Grab a new one
+            self.handle_nmi();
+
+            let memory_start = self.program_counter;
+            let opcode: u8 = self.read_from_memory_8(memory_start);
+            self.current_instruction = Some(get_instruction(opcode));
+            self.remaining_clock_cycles = self.current_instruction.unwrap().num_cycles as i8;
+
+            self.history.push_back(self.current_instruction.unwrap().name.to_string());
+            if self.history.len() > 100 {
+                self.history.pop_front();
+            }
         }
-
-        // The instruction counter is incremented prior to doing the action
-        self.program_counter += num_bytes as u16;
-
-        self.handle_instruction(opcode, instruction, instruction_data.as_slice());
 
 //        self.debug_check_for_instruction_sequence();
     }

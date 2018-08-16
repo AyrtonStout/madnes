@@ -12,7 +12,8 @@ pub struct PPU {
     vram_scroll_register: *const u8, // 0x2005 Probably the low byte for a vram read / write (Or maybe this is purely for scrolling?)
     vram_address_register: *const u8, // 0x2006 Probably the high byte for a vram read / write
     vram_data_register: *mut u8, // 0x2007 Reads or writes a byte from VRAM at the current location
-    scanline_counter: u16, // Tracks when to VBlank / Render,
+    scanline_counter: u16, // Tracks which scanline is currently being rendered
+    clock_cycle_counter: u16, // Tracks when to perform the next scanline. Each scanline lasts for 341 PPU clock cycles
     object_attribute_memory: [u8; 0x100], // Stores current sprite data to render. Copied here by the CPU writing to 0x4014
     high_byte_write: bool, // Used by $2005 and $2006 to control which part of the buffer is written to
     vram_scroll_address: u16,
@@ -38,6 +39,7 @@ impl PPU {
                 vram_address_register: io_registers.offset(6),
                 vram_data_register: io_registers.offset(7),
                 scanline_counter: 0,
+                clock_cycle_counter: 341,
                 object_attribute_memory: [0; 0x100],
                 high_byte_write: true,
                 vram_scroll_address: 0,
@@ -53,8 +55,16 @@ impl PPU {
         self.memory.init_chr_rom(chr_rom);
     }
 
-    //TODO I don't think the frame counter is actually incremented every clock tick. Sounds like it's more like every 4th tick or something
     pub fn tick(&mut self) {
+        if self.clock_cycle_counter > 0 {
+            self.clock_cycle_counter -= 1;
+            return;
+        } else {
+            // Each scanline lasts 341 cycles. This is an imperfect representation, as we render a
+            // scanline all at once, instead of doing it one pixel at a time
+            self.clock_cycle_counter = 341;
+        }
+
         self.scanline_counter += 1;
 
         if self.scanline_counter < 20 {

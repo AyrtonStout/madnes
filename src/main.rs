@@ -27,11 +27,19 @@ fn main() {
     // 46.561 microseconds
 //    let sleep_nanoseconds = Duration::new(0, 46_561);
 
+    let mut clock_cycle = 0;
     loop {
+        // The CPU receives a clock signal only once for every 3 times the PPU does
+        clock_cycle -= 1;
+        if clock_cycle <= 0 {
+            cpu.tick();
+            clock_cycle = 3;
+        }
+
+        ppu.tick();
+
         // Jank timer 'implementation'
 //        thread::sleep(sleep_nanoseconds);
-        cpu.tick();
-        ppu.tick();
     }
 //    */
 }
