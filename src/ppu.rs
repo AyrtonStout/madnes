@@ -60,9 +60,7 @@ impl PPU {
         if self.scanline_counter < 20 {
             // We are in VBlank time and likely will do nothing
         } else if self.scanline_counter == 20 {
-            println!("Starting new frame!");
             self.set_vblank_status(false);
-            self.set_sprite0_hit(true);
 
             /* TODO from http://nesdev.com/2C02%20technical%20reference.TXT
             After 20 scanlines worth of time go by (since the VINT flag was set), the PPU starts to render scanlines. This first scanline is a dummy one;
@@ -83,7 +81,7 @@ impl PPU {
 //                let start = Instant::now();
                 if self.frame_skip <= 0 {
                     self.game_window.repaint();
-                    self.frame_skip = 10;
+                    self.frame_skip = 5;
                 } else {
                     self.frame_skip -= 1;
                 }
@@ -165,7 +163,7 @@ impl PPU {
 
             // Check for sprite 0 hit
             if offset == 0 && !self.is_sprite0_hit() {
-                self.check_sprite0_hit();
+                self.check_sprite0_hit(pattern, x_offset, y_offset, line_num);
             }
 
             self.send_pattern_to_window(pattern, x_offset, y_offset, line_num,true, force_draw);
@@ -370,8 +368,17 @@ impl PPU {
         }
     }
 
-    fn check_sprite0_hit(&mut self) {
-
+    // Iterate over the pixels of sprite0 on the current scanline (line_num) and check if both the sprite
+    // and the background both have non-transparent pixel values. If they do, set sprite0 as being hit
+    fn check_sprite0_hit(&mut self, sprite0: [[u8; 8]; 8], x_offset: u8, y_offset: u8, line_num: u8) {
+        let sprite_line = y_offset - line_num;
+        for x in 0..sprite0.len() {
+            let background_pixel_exists = self.game_window.is_pixel_transparent(x_offset + x as u8, line_num);
+            if sprite0[x][sprite_line as usize] != 0 && background_pixel_exists {
+                self.set_sprite0_hit(true);
+                return;
+            }
+        }
     }
 
     fn is_sprite0_hit(&self) -> bool {
