@@ -53,6 +53,10 @@ impl PPUMemory {
         address = self.get_non_mirrored_address(address);
 
         self.memory[address as usize] = value;
+
+        if PPUMemory::is_nametable_address(address) {
+            self.mirror_nametable_write(address, value);
+        }
     }
 
     pub fn set_16_bit_value(&mut self, mut address: u16, value: u16) {
@@ -60,6 +64,11 @@ impl PPUMemory {
 
         self.memory[address as usize] = value as u8;
         self.memory[address as usize + 1] = (value >> 8) as u8;
+
+        if PPUMemory::is_nametable_address(address) {
+            self.mirror_nametable_write(address, value as u8);
+            self.mirror_nametable_write(address + 1, (value >> 8) as u8);
+        }
     }
 
     // The PPU addresses more space than it can actually use. When operating on certain memory values, it is
@@ -76,6 +85,20 @@ impl PPUMemory {
             return 0x3F00 + mini_address;
         } else {
             return address;
+        }
+    }
+
+    fn is_nametable_address(address: u16) -> bool {
+        return address >= 0x2000 && address < 0x3000;
+    }
+
+    // This is a hacky thing that is specifically in use for SMB1. This needs to be replaced with a module for
+    // mappers, with proper functionality for detecting horizontal, vertical, or other forms of nametable mirroring
+    fn mirror_nametable_write(&mut self, address: u16, value: u8) {
+        if address < 0x2800 {
+            self.memory[(address + 0x800) as usize] = value;
+        } else {
+            self.memory[(address - 0x800) as usize] = value;
         }
     }
 }
