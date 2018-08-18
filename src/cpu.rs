@@ -16,6 +16,8 @@ pub struct CPU {
     y_register: u8,
     remaining_clock_cycles: i8,
     current_instruction: Option<InstructionType>,
+    dma_counter: i16,
+    dma_address: u8,
     memory: CPUMemory,
     ppu: *mut PPU,
     history: LinkedList<String> // Just used for debugging what the emulator has run
@@ -32,6 +34,8 @@ impl CPU {
             y_register: 0,
             remaining_clock_cycles: 0,
             current_instruction: None,
+            dma_counter: -1,
+            dma_address: 0,
             memory: CPUMemory::new(),
             ppu: 0 as *mut PPU, // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
             history: LinkedList::new()
@@ -48,6 +52,11 @@ impl CPU {
     }
 
     pub fn tick(&mut self) {
+        if self.dma_counter != -1 {
+            self.perform_dma();
+            return;
+        }
+
         self.remaining_clock_cycles -= 1;
 
         if self.remaining_clock_cycles > 0 { // The instruction takes multiple cycles to finish. Keep waiting
@@ -265,7 +274,10 @@ impl CPU {
                 (*self.ppu).write_to_register(address, new_value);
             }
         } else if address == 0x4014 {
-            self.perform_dma(new_value);
+            // We're going to start performing DMA. Set the counter to 0 and each two cycles we will copy
+            // some data to PPU OAM
+            self.dma_counter = 0;
+            self.dma_address = new_value;
         }
     }
 
@@ -283,12 +295,24 @@ impl CPU {
 
     // DMA sends 256 bytes of sprite data to the PPU. The offset determines which address to start at, in 256 byte increments
     // So if memory_offset was 0x12, we'd send 0x1200 to 0x12FF to the PPU to get stored in OAM
-    // FIXME This first attempt is hella inaccurate as far as cycles go. The PPU should run for like 500 cycles during this process
-    fn perform_dma(&mut self, memory_offset: u8) {
-        let address = memory_offset as u16 * 0x100;
-        let sprite_data = self.memory.get_memory_range(address, 0x100);
+    fn perform_dma(&mut self) {
+        self.dma_counter += 1;
+        // If we've hit cycle 513 then we are done performing the DMA
+        if self.dma_counter == 513 {
+            self.dma_counter = -1;
+            return;
+        }
+
+        // We perform a transfer every 2 cycles. So only transfer data on an even cycle
+        if self.dma_counter % 2 != 0 {
+            return;
+        }
+
+        let starting_address = self.dma_address as u16 * 0x100;
+        let address_offset = (self.dma_counter / 2) as u8;
+        let sprite_data = self.memory.get_8_bit_value(starting_address + address_offset as u16);
         unsafe {
-            (*self.ppu).receive_dma(sprite_data);
+            (*self.ppu).receive_dma(address_offset, sprite_data);
         }
     }
 

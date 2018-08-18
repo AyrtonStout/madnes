@@ -360,11 +360,8 @@ impl PPU {
     }
 
     // Used to fill up the OAM table with new sprite data. No idea what DMA actually stands for
-    pub fn receive_dma(&mut self, sprite_data: Vec<u8>) {
-        for i in 0..self.object_attribute_memory.len() {
-            let sprite_byte = sprite_data[i];
-            self.object_attribute_memory[i] = sprite_byte;
-        }
+    pub fn receive_dma(&mut self, index: u8, sprite_data: u8) {
+        self.object_attribute_memory[index as usize] = sprite_data;
     }
 
     fn set_vblank_status(&mut self, is_set: bool) {
