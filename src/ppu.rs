@@ -16,8 +16,9 @@ pub struct PPU {
     clock_cycle_counter: u16, // Tracks when to perform the next scanline. Each scanline lasts for 341 PPU clock cycles
     object_attribute_memory: [u8; 0x100], // Stores current sprite data to render. Copied here by the CPU writing to 0x4014
     high_byte_write: bool, // Used by $2005 and $2006 to control which part of the buffer is written to
-    vram_scroll_address: u16,
-    vram_write_address: u16,
+    scroll_register_t: u16,
+    scroll_register_v: u16,
+    scroll_register_x: u8,
     memory: PPUMemory,
     game_window: GameWindow,
     frame_skip: u8
@@ -42,8 +43,9 @@ impl PPU {
                 clock_cycle_counter: 341,
                 object_attribute_memory: [0; 0x100],
                 high_byte_write: true,
-                vram_scroll_address: 0,
-                vram_write_address: 0,
+                scroll_register_t: 0,
+                scroll_register_v: 0,
+                scroll_register_x: 0,
                 memory: PPUMemory::new(),
                 game_window: GameWindow::new(),
                 frame_skip: 0
@@ -91,13 +93,11 @@ impl PPU {
 //                let start = Instant::now();
                 if self.frame_skip <= 0 {
                     self.game_window.repaint();
-                    self.frame_skip = 5;
+                    self.frame_skip = 1;
                 } else {
                     self.frame_skip -= 1;
                 }
             }
-
-//            println!("Scroll: {:X} Other: {:X} Coarse: {:X}", self.get_scroll(), self.vram_scroll_address, self.get_coarse_x());
 
             self.set_vblank_status(true);
             self.scanline_counter = 0;
@@ -282,12 +282,6 @@ impl PPU {
         }
     }
 
-    fn get_scroll(&self) -> u8 {
-        unsafe {
-            return *(self.vram_scroll_register);
-        }
-    }
-
     #[allow(dead_code)]
     fn using_16px_height_sprites(&self) -> bool {
         unsafe {
@@ -323,13 +317,27 @@ impl PPU {
         }
     }
 
+    fn get_address_increment_amount(&self) -> u8 {
+        unsafe {
+            let bit_set = (*(self.ppu_mask_register) & 0b0000_0100) != 0;
+            return if bit_set { 32 } else { 1 }
+        }
+    }
+
     // CPU needs to call this whenever it reads from 0x2002
-    pub fn status_register_read(&mut self) {
-        self.high_byte_write = true;
+    pub fn read_from_register(&mut self, address: u16) {
+        if address == 0x2002 {
+            self.high_byte_write = true;
+        } else if address == 0x2007 {
+            self.scroll_register_v += self.get_address_increment_amount() as u16;
+        }
     }
 
     pub fn write_to_register(&mut self, address: u16, value: u8) {
-        if address == 0x2004 {
+        if address == 0x2000 {
+            self.scroll_register_t &= 0b0111_0011_1111_1111;
+            self.scroll_register_t |= ((value & 0b0000_0011) as u16) << 10;
+        } else if address == 0x2004 {
             unsafe {
                 let oam_address =  *self.spr_ram_address_register;
                 self.object_attribute_memory[oam_address as usize] = value;
@@ -338,24 +346,35 @@ impl PPU {
         } else if address == 0x2005 {
 //            println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
-                self.vram_scroll_address = ((value as u16) << 8) | (self.vram_scroll_address & 0x00FF);
+                self.scroll_register_t &= 0b0111_1111_1110_0000;
+                self.scroll_register_t |= (value >> 3) as u16;
+
+                self.scroll_register_x = value & 0b0000_0111;
             } else {
-                self.vram_scroll_address = (self.vram_scroll_address & 0xFF00) | (value as u16);
+                self.scroll_register_t &= 0b0000_1100_0001_1111;
+                self.scroll_register_t |= ((value & 0b1100_0000) as u16) << 2;
+                self.scroll_register_t |= ((value & 0b0011_1000) as u16) << 2;
+                self.scroll_register_t |= ((value & 0b0000_0111) as u16) << 12;
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2006 {
 //            println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
-                self.vram_write_address = ((value as u16) << 8) | (self.vram_write_address & 0x00FF);
+                self.scroll_register_t &= 0b0000_0000_1111_1111;
+                self.scroll_register_t |= ((value & 0b0011_1111) as u16) << 8;
             } else {
-                self.vram_write_address = (self.vram_write_address & 0xFF00) | (value as u16);
+//                println!("2006: {:X}", value);
+                self.scroll_register_t &= 0b1111_1111_0000_0000;
+                self.scroll_register_t |= value as u16;
+
+                self.scroll_register_v = self.scroll_register_t;
+                println!("V: {:X}", self.scroll_register_v);
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2007 {
-            self.memory.set_8_bit_value(self.vram_write_address, value);
+            self.memory.set_8_bit_value(self.scroll_register_v, value);
 
-            // TODO this needs to sometimes be 16 or 32 or something based off a PPU CTRL flag
-            self.vram_write_address += 1;
+            self.scroll_register_v += self.get_address_increment_amount() as u16;
         }
     }
 
@@ -404,8 +423,20 @@ impl PPU {
         }
     }
 
-    fn get_coarse_x(&self) -> u16 {
-        return self.vram_scroll_address & 0b0000_0000_0001_1111;
+    fn get_coarse_x(&self) -> u8 {
+        return (self.scroll_register_v & 0b0000_0000_0001_1111) as u8;
+    }
+
+    fn get_coarse_y(&self) -> u8 {
+        return ((self.scroll_register_v & 0b0000_0011_1110_0000) >> 5) as u8;
+    }
+
+    fn get_fine_x(&self) -> u8 {
+        return self.scroll_register_x;
+    }
+
+    fn get_fine_y(&self) -> u8 {
+        return ((self.scroll_register_v & 0b0111_0000_0000_0000) >> 12) as u8;
     }
 }
 

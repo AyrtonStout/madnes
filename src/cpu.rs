@@ -269,7 +269,7 @@ impl CPU {
     fn write_to_memory_8(&mut self, address: u16, new_value: u8) {
         self.memory.set_8_bit_value(address, new_value);
 
-        if address >= 0x2004 && address <= 0x2007 {
+        if address >= 0x2000 && address <= 0x2007 {
             unsafe {
                 (*self.ppu).write_to_register(address, new_value);
             }
@@ -284,9 +284,9 @@ impl CPU {
     fn read_from_memory_8(&mut self, address: u16) -> u8 {
         let memory = self.memory.get_8_bit_value(address);
 
-        if address == 0x2002 {
+        if address >= 0x2000 && address <= 0x2007 {
             unsafe {
-                (*self.ppu).status_register_read();
+                (*self.ppu).read_from_register(address);
             }
         }
 

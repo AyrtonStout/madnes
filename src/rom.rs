@@ -65,7 +65,7 @@ fn find_start_of_rom_data(buffer: &[u8]) -> Result<usize, String> {
             }
 
             // We found an N. Check that the following characters are 'E' 'S' 'EOF'
-            if index  + 3 >= buffer.len() { // We would access invalid indexes if we continued
+            if index + 3 >= buffer.len() { // We would access invalid indexes if we continued
                 return Err("First non-zero ROM data was 'N' but ROM data was too small to continue parsing".to_owned())
             }
 
