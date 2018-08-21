@@ -74,6 +74,7 @@ impl CPU {
             let instruction = self.current_instruction.unwrap();
             self.handle_instruction(opcode, instruction, instruction_data.as_slice());
         } else { // Our last instruction finished. Grab a new one
+            self.update_controller_memory();
             self.handle_nmi();
 
             let memory_start = self.program_counter;
@@ -88,29 +89,6 @@ impl CPU {
         }
 
 //        self.debug_check_for_instruction_sequence();
-    }
-
-    // Mostly used by me to see where in the super mario bros disassembly the emulator is getting to
-    #[allow(dead_code)]
-    fn debug_check_for_instruction_sequence(&mut self) {
-        let sequence = ["LDY", "LDA", "ORA", "CMP", "BEQ", "CMP", "BNE", "JMP"];
-
-        if self.history.len() < sequence.len() {
-            return;
-        }
-
-        let mut iter = self.history.iter().rev();
-
-        for i in 0..sequence.len() {
-            let expected = (&sequence[sequence.len() - i - 1]).to_lowercase();
-            let actual = iter.next().unwrap().to_lowercase();
-            if expected != actual {
-//                panic!();
-                return;
-            }
-        }
-
-        panic!("Sequence found!");
     }
 
     // NOTE: There is some tomfoolery possible here. A thing called 'Interrupt Hijacking'. Might have to implement
@@ -313,6 +291,15 @@ impl CPU {
         let sprite_data = self.memory.get_8_bit_value(starting_address + address_offset as u16);
         unsafe {
             (*self.ppu).receive_dma(address_offset, sprite_data);
+        }
+    }
+
+    fn update_controller_memory(&mut self) {
+        unsafe {
+            let controllers = (*self.ppu).get_controllers();
+            self.memory.set_8_bit_value(0x4016, controllers);
+            println!("{:X}", self.memory.get_8_bit_value(0x4016));
+//            self.memory.set_8_bit_value(0x4017, controllers.controller2);
         }
     }
 

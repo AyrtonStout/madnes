@@ -24,6 +24,7 @@ const SCALING: u8 = 3;
 
 #[allow(dead_code)]
 impl GameWindow {
+    //noinspection RsFieldInitShorthand
     pub fn new() -> GameWindow {
 
         let sdl_context = sdl2::init().unwrap();
@@ -64,9 +65,13 @@ impl GameWindow {
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     panic!("Exiting game");
                 },
-                _ => {
-                    println!("{:?}", event);
+                Event::KeyDown { keycode, ..} => {
+                    self.controller.receive_input(keycode.unwrap(), true)
+                },
+                Event::KeyUp { keycode, ..} => {
+                    self.controller.receive_input(keycode.unwrap(), false)
                 }
+                _ => { }
             }
         }
     }

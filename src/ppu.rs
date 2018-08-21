@@ -1,5 +1,6 @@
 use ppu_memory::PPUMemory;
 use game_window::GameWindow;
+use controller::Controller;
 //use std::time::Instant;
 
 #[allow(dead_code)]
@@ -368,7 +369,7 @@ impl PPU {
                 self.scroll_register_t |= value as u16;
 
                 self.scroll_register_v = self.scroll_register_t;
-                println!("V: {:X}", self.scroll_register_v);
+//                println!("V: {:X}", self.scroll_register_v);
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2007 {
@@ -381,6 +382,10 @@ impl PPU {
     // Used to fill up the OAM table with new sprite data. No idea what DMA actually stands for
     pub fn receive_dma(&mut self, index: u8, sprite_data: u8) {
         self.object_attribute_memory[index as usize] = sprite_data;
+    }
+
+    pub fn get_controllers(&self) -> u8 {
+        return self.game_window.controller.controller1;
     }
 
     fn set_vblank_status(&mut self, is_set: bool) {
