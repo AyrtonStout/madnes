@@ -8,6 +8,7 @@ mod ppu;
 mod ppu_memory;
 mod instruction_set;
 mod game_window;
+mod controller;
 
 use rom::Rom as Rom;
 use cpu::CPU as CPU;

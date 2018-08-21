@@ -8,11 +8,14 @@ use sdl2::video::Window;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
+use controller::Controller as Controller;
+
 #[allow(dead_code)]
 pub struct GameWindow {
     things_to_draw: [[u8; 240]; 256],
     canvas: Canvas<Window>,
-    pub sdl_context: Sdl
+    pub sdl_context: Sdl,
+    pub controller: Controller
 }
 
 const SCREEN_WIDTH: u16 = 256;
@@ -40,9 +43,10 @@ impl GameWindow {
         canvas.present();
 
         return GameWindow {
-            things_to_draw, // TODO make it a color
-            canvas,
-            sdl_context
+            things_to_draw: things_to_draw, // TODO make it a color
+            canvas: canvas,
+            sdl_context: sdl_context,
+            controller: Controller::new()
         }
     }
 
@@ -60,7 +64,9 @@ impl GameWindow {
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     panic!("Exiting game");
                 },
-                _ => { }
+                _ => {
+                    println!("{:?}", event);
+                }
             }
         }
     }
