@@ -3,6 +3,7 @@ use cpu_memory::CPUMemory;
 use instruction_set::AddressingMode;
 use instruction_set::InstructionType;
 use ppu::PPU as PPU;
+use controlletron::Controlletron as Controlletron;
 use std::collections::linked_list::LinkedList;
 
 static STACK_POINTER_OFFSET: u16 = 0x100;
@@ -20,8 +21,13 @@ pub struct CPU {
     dma_address: u8,
     memory: CPUMemory,
     ppu: *mut PPU,
+    controlletron: *mut Controlletron,
     history: LinkedList<String> // Just used for debugging what the emulator has run
 }
+
+const OAM_DMA_MEMORY: u16 = 0x4014;
+const CONTROLLER1_MEMORY: u16 = 0x4016;
+const CONTROLLER2_MEMORY: u16 = 0x4017;
 
 impl CPU {
     pub fn new() -> CPU {
@@ -37,13 +43,18 @@ impl CPU {
             dma_counter: -1,
             dma_address: 0,
             memory: CPUMemory::new(),
-            ppu: 0 as *mut PPU, // FIXME: Due to shitty separation of concerns (CPU and PPU both rely on references to each other), this is set after the CPU is newed up
+            ppu: 0 as *mut PPU,
+            controlletron: 0 as *mut Controlletron,
             history: LinkedList::new()
         }
     }
 
-    pub fn init_ppu(&mut self, ppu: *mut PPU) {
+    // FIXME: Due to shitty separation of concerns (e.g. CPU and PPU both rely on references to each other), this is set after the CPU is newed up
+    pub fn init_late_pointers(&mut self, ppu: *mut PPU) {
         self.ppu = ppu;
+        unsafe {
+            self.controlletron = (*self.ppu).get_controlletron();
+        }
     }
 
     pub fn init_prg_rom(&mut self, prg_rom: Vec<u8>) {
@@ -74,7 +85,6 @@ impl CPU {
             let instruction = self.current_instruction.unwrap();
             self.handle_instruction(opcode, instruction, instruction_data.as_slice());
         } else { // Our last instruction finished. Grab a new one
-            self.update_controller_memory();
             self.handle_nmi();
 
             let memory_start = self.program_counter;
@@ -251,11 +261,15 @@ impl CPU {
             unsafe {
                 (*self.ppu).write_to_register(address, new_value);
             }
-        } else if address == 0x4014 {
+        } else if address == OAM_DMA_MEMORY {
             // We're going to start performing DMA. Set the counter to 0 and each two cycles we will copy
             // some data to PPU OAM
             self.dma_counter = 0;
             self.dma_address = new_value;
+        } else if address == CONTROLLER1_MEMORY {
+            unsafe {
+                (*self.controlletron).receive_memory_write(new_value);
+            }
         }
     }
 
@@ -265,6 +279,11 @@ impl CPU {
         if address >= 0x2000 && address <= 0x2007 {
             unsafe {
                 (*self.ppu).read_from_register(address);
+            }
+        }
+        if address == CONTROLLER1_MEMORY || address == CONTROLLER2_MEMORY {
+            unsafe {
+                return (*self.controlletron).read_controller_value(address);
             }
         }
 
@@ -291,15 +310,6 @@ impl CPU {
         let sprite_data = self.memory.get_8_bit_value(starting_address + address_offset as u16);
         unsafe {
             (*self.ppu).receive_dma(address_offset, sprite_data);
-        }
-    }
-
-    fn update_controller_memory(&mut self) {
-        unsafe {
-            let controllers = (*self.ppu).get_controllers();
-            self.memory.set_8_bit_value(0x4016, controllers);
-            println!("{:X}", self.memory.get_8_bit_value(0x4016));
-//            self.memory.set_8_bit_value(0x4017, controllers.controller2);
         }
     }
 

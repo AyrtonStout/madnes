@@ -1,6 +1,6 @@
 use ppu_memory::PPUMemory;
 use game_window::GameWindow;
-use controller::Controller;
+use controlletron::Controlletron;
 //use std::time::Instant;
 
 #[allow(dead_code)]
@@ -59,6 +59,10 @@ impl PPU {
     }
 
     pub fn tick(&mut self) {
+
+//        println!("Coarse X: {:X}, Fine X: {:X}, Coarse Y: {:X}, Fine Y: {:X}, V: {:X}",
+//                 self.get_coarse_x(), self.get_fine_x(), self.get_coarse_y(), self.get_fine_y(), self.scroll_register_v);
+
         if self.clock_cycle_counter > 0 {
             self.clock_cycle_counter -= 1;
             return;
@@ -384,8 +388,8 @@ impl PPU {
         self.object_attribute_memory[index as usize] = sprite_data;
     }
 
-    pub fn get_controllers(&self) -> u8 {
-        return self.game_window.controller.controller1;
+    pub fn get_controlletron(&mut self) -> *mut Controlletron {
+        return &mut self.game_window.controlletron;
     }
 
     fn set_vblank_status(&mut self, is_set: bool) {

@@ -8,7 +8,7 @@ mod ppu;
 mod ppu_memory;
 mod instruction_set;
 mod game_window;
-mod controller;
+mod controlletron;
 
 use rom::Rom as Rom;
 use cpu::CPU as CPU;
@@ -22,7 +22,7 @@ fn main() {
     let mut cpu: CPU = CPU::new();
     cpu.init_prg_rom(rom.prg_rom);
     let mut ppu: PPU = PPU::new(cpu.get_ppu_io_registers_address());
-    cpu.init_ppu(&mut ppu as *mut PPU);
+    cpu.init_late_pointers(&mut ppu as *mut PPU);
     ppu.init_chr_rom(rom.chr_rom);
 
     // 46.561 microseconds

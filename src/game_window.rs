@@ -8,14 +8,14 @@ use sdl2::video::Window;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
-use controller::Controller as Controller;
+use controlletron::Controlletron as Controlletron;
 
 #[allow(dead_code)]
 pub struct GameWindow {
     things_to_draw: [[u8; 240]; 256],
     canvas: Canvas<Window>,
     pub sdl_context: Sdl,
-    pub controller: Controller
+    pub controlletron: Controlletron
 }
 
 const SCREEN_WIDTH: u16 = 256;
@@ -47,7 +47,7 @@ impl GameWindow {
             things_to_draw: things_to_draw, // TODO make it a color
             canvas: canvas,
             sdl_context: sdl_context,
-            controller: Controller::new()
+            controlletron: Controlletron::new()
         }
     }
 
@@ -66,10 +66,10 @@ impl GameWindow {
                     panic!("Exiting game");
                 },
                 Event::KeyDown { keycode, ..} => {
-                    self.controller.receive_input(keycode.unwrap(), true)
+                    self.controlletron.receive_key_input(keycode.unwrap(), true)
                 },
                 Event::KeyUp { keycode, ..} => {
-                    self.controller.receive_input(keycode.unwrap(), false)
+                    self.controlletron.receive_key_input(keycode.unwrap(), false)
                 }
                 _ => { }
             }
