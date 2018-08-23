@@ -406,17 +406,16 @@ impl CPU {
     }
 
     // Used only by JMP. Returns the address stored at the address
-    fn get_indirect_address(&self, instruction_data: &[u8]) -> u16 {
+    fn get_indirect_address(&mut self, instruction_data: &[u8]) -> u16 {
         // This is a bug in the 6502 itself that has to be reproduced for accuracy
-        // TODO test this necessarily-bugged code path
-        let starting_address: u16 = if instruction_data[0] == 0xFF {
-            CPU::convert_to_address(&[instruction_data[0], instruction_data[1] - 1])
+        if instruction_data[0] == 0xFF {
+            let low_byte = self.memory.get_8_bit_value(CPU::convert_to_address(instruction_data));
+            let high_byte = self.memory.get_8_bit_value(CPU::convert_to_address(&[0x00, instruction_data[1]]));
+            return (high_byte as u16) << 8 | low_byte as u16
         } else {
-            CPU::convert_to_address(instruction_data)
+            let address = CPU::convert_to_address(instruction_data);
+            return self.memory.get_16_bit_value(address);
         };
-
-        let true_address = self.memory.get_16_bit_value(starting_address);
-        return true_address;
     }
 
     fn compute_absolute_address(&mut self, instruction_data: &[u8], offset: u8) -> u16 {
@@ -1499,6 +1498,18 @@ mod tests {
         cpu.asm_jmp(0x2050);
 
         assert_eq!(cpu.program_counter, 0x2050);
+    }
+
+    #[test]
+    fn test_indirect_page_bug() {
+        let mut cpu: CPU = CPU::new();
+        cpu.memory.set_8_bit_value(0x3000, 0x40);
+        cpu.memory.set_8_bit_value(0x30FF, 0x80);
+        cpu.memory.set_8_bit_value(0x3100, 0x50);
+
+        let result = cpu.get_indirect_address(&[0xFF, 0x30]);
+
+        assert_eq!(result, 0x4080);
     }
 
     #[test]
