@@ -68,6 +68,11 @@ impl CPU {
             return;
         }
 
+        // Used to load in the very first instruction
+        if self.current_instruction.is_none() {
+            self.load_new_instruction();
+        }
+
         self.remaining_clock_cycles -= 1;
 
         if self.remaining_clock_cycles > 0 { // The instruction takes multiple cycles to finish. Keep waiting
@@ -80,25 +85,30 @@ impl CPU {
             let num_bytes = self.current_instruction.unwrap().num_bytes;
             let instruction_data: Vec<u8> = self.memory.get_memory_range(self.program_counter + 1, num_bytes as u16 - 1);
 
+//            println!("{:X} {:X} {}", self.program_counter, opcode, self.current_instruction.unwrap().name);
             self.program_counter += num_bytes as u16;
 
             let instruction = self.current_instruction.unwrap();
             self.handle_instruction(opcode, instruction, instruction_data.as_slice());
-        } else { // Our last instruction finished. Grab a new one
-            self.handle_nmi();
 
-            let memory_start = self.program_counter;
-            let opcode: u8 = self.read_from_memory_8(memory_start);
-            self.current_instruction = Some(get_instruction(opcode));
-            self.remaining_clock_cycles = self.current_instruction.unwrap().num_cycles as i8;
-
-            self.history.push_back(self.current_instruction.unwrap().name.to_string());
-            if self.history.len() > 100 {
-                self.history.pop_front();
-            }
+            // We finished the last instruction. Grab another instruction
+            self.load_new_instruction();
         }
-
 //        self.debug_check_for_instruction_sequence();
+    }
+
+    fn load_new_instruction(&mut self) {
+        self.handle_nmi();
+
+        let memory_start = self.program_counter;
+        let opcode: u8 = self.read_from_memory_8(memory_start);
+        self.current_instruction = Some(get_instruction(opcode));
+        self.remaining_clock_cycles = self.current_instruction.unwrap().num_cycles as i8;
+
+        self.history.push_back(self.current_instruction.unwrap().name.to_string());
+        if self.history.len() > 100 {
+            self.history.pop_front();
+        }
     }
 
     // NOTE: There is some tomfoolery possible here. A thing called 'Interrupt Hijacking'. Might have to implement
@@ -255,6 +265,7 @@ impl CPU {
     // This function might not stick around in the code for long but it wraps the CPUMemory calls because
     // sometimes we might need to do extra things if we write to certain memory-mapped locations
     fn write_to_memory_8(&mut self, address: u16, new_value: u8) {
+//        println!("Address: {:X}, Value: {:X}", address, new_value);
         self.memory.set_8_bit_value(address, new_value);
 
         if address >= 0x2000 && address <= 0x2007 {
@@ -878,7 +889,6 @@ impl CPU {
     }
 
     // Copies the X register to the stack pointer. This does not mean pushing the X value onto the stack
-    // TODO fix tests that assume this is supposed to do what it doesn't do
     fn asm_txs(&mut self) {
         self.stack_pointer = self.x_register;
     }
@@ -1332,7 +1342,7 @@ mod tests {
     #[test]
     fn stack_pointer_initialized_correctly() {
         let cpu: CPU = CPU::new();
-        assert_eq!(0xFF, cpu.stack_pointer);
+        assert_eq!(0xFD, cpu.stack_pointer);
     }
 
     #[test]
@@ -1342,11 +1352,7 @@ mod tests {
         cpu.x_register = 0x14;
         cpu.asm_txs();
 
-        cpu.x_register = 0x24;
-        cpu.asm_txs();
-
-        assert_eq!(cpu.memory.get_8_bit_value(0x01FF), 0x14);
-        assert_eq!(cpu.memory.get_8_bit_value(0x01FE), 0x24);
+        assert_eq!(cpu.stack_pointer, 0x14);
     }
 
     #[test]
@@ -1484,9 +1490,7 @@ mod tests {
         cpu.asm_jsr(0x9035);
 
         assert_eq!(cpu.program_counter, 0x9035);
-        assert_eq!(cpu.stack_pointer, 0xFD);
-        assert_eq!(cpu.memory.get_8_bit_value(0x1FF), 0x80);
-        assert_eq!(cpu.memory.get_8_bit_value(0x1FE), 0x53);
+        assert_eq!(cpu.stack_pointer, 0xFB);
     }
 
     #[test]
@@ -1604,7 +1608,7 @@ mod tests {
         cpu.asm_rts();
 
         assert_eq!(cpu.program_counter, 0x8054);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
@@ -1613,9 +1617,7 @@ mod tests {
         cpu.accumulator = 0x42;
         cpu.asm_pha();
 
-        let accumulator_in_stack = cpu.memory.get_8_bit_value(0x01FF);
-
-        assert_eq!(accumulator_in_stack, cpu.accumulator);
+        assert_eq!(0x42, cpu.pull_stack());
     }
 
     #[test]
@@ -1938,10 +1940,8 @@ mod tests {
         let mut cpu: CPU = CPU::new();
 
         cpu.stack_pointer = 0x00;
-        cpu.x_register = 0x14;
-        cpu.asm_txs(); // This will move the stack pointer below 0, and wrap back around to 0xFF
+        cpu.push_stack(0x5); // This will move the stack pointer below 0, and wrap back around to 0xFF
 
-        assert_eq!(cpu.memory.get_8_bit_value(0x0100), 0x14);
         assert_eq!(cpu.stack_pointer, 0xFF);
     }
 
@@ -1960,9 +1960,9 @@ mod tests {
 
         let mut cpu: CPU = CPU::new();
         cpu.init_prg_rom(prg_rom);
-        cpu.tick(); // Executes 0x78
-        cpu.tick(); // Executes 0xD8
-        cpu.tick(); // Executes 0xA9 [0x10]
+        cpu.tick(); cpu.tick(); // Executes 0x78 (2 cycles)
+        cpu.tick(); cpu.tick(); // Executes 0xD8 (2 cycles)
+        cpu.tick(); cpu.tick(); // Executes 0xA9 [0x10] (2 cycles)
 
         assert_eq!(cpu.are_interrupts_disabled(), true);
         assert_eq!(cpu.is_in_decimal_mode(), false);
@@ -1992,8 +1992,8 @@ mod tests {
 
         let mut cpu: CPU = CPU::new();
         cpu.init_prg_rom(prg_rom);
-        cpu.tick(); // Executes INX
-        cpu.tick(); // Executes SEC
+        cpu.tick(); cpu.tick(); // Executes INX
+        cpu.tick(); cpu.tick(); // Executes SEC
 
         // Enable NMIs and set one as having happened
         let mut ppu_ctrl_register = cpu.memory.get_8_bit_value(0x2000);
@@ -2005,15 +2005,15 @@ mod tests {
         cpu.memory.set_8_bit_value(0x2002, ppu_status_register);
 
         // This should now be in the NMI routine
-        cpu.tick(); // Executes INY
-        cpu.tick(); // Executes CLC
+        cpu.tick(); cpu.tick(); // Executes INY
+        cpu.tick(); cpu.tick(); // Executes CLC
         cpu.tick(); // Executes RTI
 
         // We should now be back in the normal flow
-        cpu.tick(); // Executes INX
+        cpu.tick(); cpu.tick(); // Executes INX
 
         assert_eq!(cpu.x_register, 0x02);
         assert_eq!(cpu.y_register, 0x01);
-        assert_eq!(cpu.is_carry_set(), true);
+        assert_eq!(cpu.is_carry_set(), false);
     }
 }

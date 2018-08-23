@@ -323,9 +323,4 @@ mod tests {
         assert_eq!(instruction.num_bytes, 1);
     }
 
-    #[test]
-    #[should_panic]
-    fn errors_on_unimplemented_instruction() {
-        instruction_set::get_instruction(3);
-    }
 }
