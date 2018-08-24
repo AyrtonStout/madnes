@@ -285,20 +285,21 @@ impl CPU {
     }
 
     fn read_from_memory_8(&mut self, address: u16) -> u8 {
-        let memory = self.memory.get_8_bit_value(address);
-
-        if address >= 0x2000 && address <= 0x2007 {
+        if address == 0x2002 {
             unsafe {
-                (*self.ppu).read_from_register(address);
+                (*self.ppu).reset_high_byte_read();
             }
-        }
-        if address == CONTROLLER1_MEMORY || address == CONTROLLER2_MEMORY {
+        } else if address == 0x2007 {
+            unsafe {
+                return (*self.ppu).read_from_ppu_data();
+            }
+        } else if address == CONTROLLER1_MEMORY || address == CONTROLLER2_MEMORY {
             unsafe {
                 return (*self.controlletron).read_controller_value(address);
             }
         }
 
-        return memory;
+        return self.memory.get_8_bit_value(address);
     }
 
     // DMA sends 256 bytes of sprite data to the PPU. The offset determines which address to start at, in 256 byte increments

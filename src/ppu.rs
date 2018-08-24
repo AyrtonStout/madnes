@@ -20,6 +20,7 @@ pub struct PPU {
     scroll_register_t: u16,
     scroll_register_v: u16,
     scroll_register_x: u8,
+    internal_read_buffer: u8, // Reads by the CPU from $2007 are delayed one read
     memory: PPUMemory,
     game_window: GameWindow,
     frame_skip: u8
@@ -47,6 +48,7 @@ impl PPU {
                 scroll_register_t: 0,
                 scroll_register_v: 0,
                 scroll_register_x: 0,
+                internal_read_buffer: 0,
                 memory: PPUMemory::new(),
                 game_window: GameWindow::new(),
                 frame_skip: 0
@@ -324,18 +326,33 @@ impl PPU {
 
     fn get_address_increment_amount(&self) -> u8 {
         unsafe {
-            let bit_set = (*(self.ppu_mask_register) & 0b0000_0100) != 0;
+            let bit_set = (*(self.ppu_control_register) & 0b0000_0100) != 0;
             return if bit_set { 32 } else { 1 }
         }
     }
 
-    // CPU needs to call this whenever it reads from 0x2002
-    pub fn read_from_register(&mut self, address: u16) {
-        if address == 0x2002 {
-            self.high_byte_write = true;
-        } else if address == 0x2007 {
-            self.scroll_register_v += self.get_address_increment_amount() as u16;
+    pub fn read_from_ppu_data(&mut self) -> u8 {
+        self.scroll_register_v += self.get_address_increment_amount() as u16;
+
+        let address = self.scroll_register_v;
+
+        if address < 0x3F00 {
+            // Reads from most of VRAM are buffered and delay by a read
+            let rval = self.internal_read_buffer;
+            self.internal_read_buffer = self.memory.get_8_bit_value(self.scroll_register_v);
+
+            return rval;
+        } else {
+            // Reads on palette data happen right away, but still set the internal read buffer to the value
+            // it would read from one "page" of memory down (or by subtracting 0x1000 from the address)
+            self.internal_read_buffer = self.memory.get_8_bit_value(self.scroll_register_v - 0x1000);
+            return self.memory.get_8_bit_value(self.scroll_register_v);
         }
+    }
+
+    // CPU needs to call this whenever it reads from 0x2002
+    pub fn reset_high_byte_read(&mut self) {
+        self.high_byte_write = true;
     }
 
     pub fn write_to_register(&mut self, address: u16, value: u8) {
