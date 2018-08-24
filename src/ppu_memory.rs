@@ -56,6 +56,8 @@ impl PPUMemory {
 
         if PPUMemory::is_nametable_address(address) {
             self.mirror_nametable_write(address, value);
+        } else if PPUMemory::is_palette_address(address) {
+            self.mirror_palette_write(address, value);
         }
     }
 
@@ -68,6 +70,9 @@ impl PPUMemory {
         if PPUMemory::is_nametable_address(address) {
             self.mirror_nametable_write(address, value as u8);
             self.mirror_nametable_write(address + 1, (value >> 8) as u8);
+        } else if PPUMemory::is_palette_address(address) {
+            self.mirror_palette_write(address, value as u8);
+            self.mirror_palette_write(address + 1, (value >> 8) as u8);
         }
     }
 
@@ -92,6 +97,10 @@ impl PPUMemory {
         return address >= 0x2000 && address < 0x3000;
     }
 
+    fn is_palette_address(address: u16) -> bool {
+        return address >= 0x3F00 && address < 0x4000;
+    }
+
     // This is a hacky thing that is specifically in use for SMB1. This needs to be replaced with a module for
     // mappers, with proper functionality for detecting horizontal, vertical, or other forms of nametable mirroring
     fn mirror_nametable_write(&mut self, address: u16, value: u8) {
@@ -99,6 +108,14 @@ impl PPUMemory {
             self.memory[(address + 0x800) as usize] = value;
         } else {
             self.memory[(address - 0x800) as usize] = value;
+        }
+    }
+
+    fn mirror_palette_write(&mut self, address: u16, value: u8) {
+        let normalized_address = self.get_non_mirrored_address(address);
+
+        for i in 0..5 {
+            self.memory[(address + (0x20 * i)) as usize] = value;
         }
     }
 }
@@ -138,5 +155,25 @@ mod tests {
         memory.set_8_bit_value(0x1500, 0x42); // 8 bit value stored as 16
         memory.set_8_bit_value(0x1501, 0xA5); // 16 bit value also stored as 16
         assert_eq!(memory.get_16_bit_value(0x1500), 0xA542);
+    }
+
+    #[test]
+    fn palette_writes_are_mirrored() {
+        let mut memory = PPUMemory::new();
+
+        memory.set_8_bit_value(0x3F05, 0x42);
+        assert_eq!(memory.memory[0x3F05], 0x42);
+        assert_eq!(memory.memory[0x3F25], 0x42);
+        assert_eq!(memory.memory[0x3F45], 0x42);
+        assert_eq!(memory.memory[0x3F65], 0x42);
+        assert_eq!(memory.memory[0x3F85], 0x42);
+    }
+
+    #[test]
+    fn palette_reads_are_mirrored() {
+        let mut memory = PPUMemory::new();
+
+        memory.memory[0x3F05] = 0x42;
+        assert_eq!(memory.get_8_bit_value(0x3F25), 0x42);
     }
 }
