@@ -111,11 +111,9 @@ impl PPUMemory {
         }
     }
 
-    fn mirror_palette_write(&mut self, address: u16, value: u8) {
-        let normalized_address = self.get_non_mirrored_address(address);
-
+    fn mirror_palette_write(&mut self, normalized_address: u16, value: u8) {
         for i in 0..5 {
-            self.memory[(address + (0x20 * i)) as usize] = value;
+            self.memory[(normalized_address + (0x20 * i)) as usize] = value;
         }
     }
 }
@@ -161,7 +159,7 @@ mod tests {
     fn palette_writes_are_mirrored() {
         let mut memory = PPUMemory::new();
 
-        memory.set_8_bit_value(0x3F05, 0x42);
+        memory.set_8_bit_value(0x3F25, 0x42);
         assert_eq!(memory.memory[0x3F05], 0x42);
         assert_eq!(memory.memory[0x3F25], 0x42);
         assert_eq!(memory.memory[0x3F45], 0x42);

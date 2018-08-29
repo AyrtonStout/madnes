@@ -117,6 +117,11 @@ impl GameWindow {
     pub fn is_pixel_transparent(&self, x: u8, y: u8) -> bool {
         return self.things_to_draw[x as usize][y as usize] == 0;
     }
+
+    // Used for debugging right now
+    pub fn get_pixel_value(&self, x: u8, y: u8) -> u8 {
+        return self.things_to_draw[x as usize][y as usize];
+    }
 }
 
 

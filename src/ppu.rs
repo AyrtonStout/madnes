@@ -61,13 +61,24 @@ impl PPU {
     }
 
     pub fn tick(&mut self) {
+        self.clock_cycle_counter -= 1;
 
-//        println!("Coarse X: {:X}, Fine X: {:X}, Coarse Y: {:X}, Fine Y: {:X}, V: {:X}",
-//                 self.get_coarse_x(), self.get_fine_x(), self.get_coarse_y(), self.get_fine_y(), self.scroll_register_v);
+        if self.clock_cycle_counter == 257 && self.is_rendering_enabled() {
+            self.scroll_register_v &= 0b1111_1011_1110_0000;
+            self.scroll_register_v |= self.scroll_register_t & 0b0000_0100_0000_0000;
+            self.scroll_register_v |= self.scroll_register_t & 0b0000_0000_0001_1111;
+        }
+
+        // "If rendering is enabled, at the end of vblank, shortly after the horizontal bits are copied from t to v at dot 257,
+        // the PPU will repeatedly copy the vertical bits from t to v from dots 280 to 304, completing the full initialization of v from t"
+        if self.scanline_counter == 20 && self.clock_cycle_counter >= 280 && self.clock_cycle_counter <= 304 && self.is_rendering_enabled() {
+            self.scroll_register_v &= 0b0000_0100_0001_1111;
+            self.scroll_register_v |= self.scroll_register_t & 0b0111_1000_0000_0000;
+            self.scroll_register_v |= self.scroll_register_t & 0b0000_0011_1110_0000;
+        }
 
         if self.clock_cycle_counter > 0 {
-            self.clock_cycle_counter -= 1;
-            return;
+            return
         } else {
             // Each scanline lasts 341 cycles. This is an imperfect representation, as we render a
             // scanline all at once, instead of doing it one pixel at a time
@@ -137,15 +148,18 @@ impl PPU {
     }
 
     fn draw_scanline(&mut self, line_num: u8) {
-        // TODO only the first 8 sprites should be drawn and a sprite overflow flag should be set
-        // https://wiki.nesdev.com/w/index.php/Sprite_overflow_games
-        if self.are_sprites_rendered() {
-            self.draw_sprites(line_num);
-        }
         if self.is_background_rendered() {
             self.draw_background(line_num);
         }
 
+        // TODO only the first 8 sprites should be drawn and a sprite overflow flag should be set
+        // https://wiki.nesdev.com/w/index.php/Sprite_overflow_games
+        if self.are_sprites_rendered() {
+            // The sprite rendering lags behind background rendering by 1 scanline... I think
+            if line_num > 0 {
+                self.draw_sprites(line_num - 1);
+            }
+        }
     }
 
     fn draw_sprites(&mut self, line_num: u8) {
@@ -153,15 +167,18 @@ impl PPU {
             panic!("16px sprites are not yet supported!");
         }
 
-//        println!("{:?}", self.object_attribute_memory.to_vec());
-        let num_sprites = 64; // Maximum number of sprites an NES game can display
-        let oam_entry_size = 4;
+        let num_sprites = 64; // Maximum number of sprites an NES game can hold in sprite memory
+        let oam_entry_size = 4; // Each sprite takes up 4 bytes
+
         // Now iterate through all sprites backwards.
         // Backwards because earlier sprites have priority, and need to overwrite later sprites
         for offset in (0..num_sprites).rev() {
             let start_address = offset * oam_entry_size;
 
-            let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
+            // For whatever reason the NES renders sprites one pixel lower than they say they are. So add 1 to the y_offset here
+//            let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
+            let y_offset = self.object_attribute_memory[start_address];
+
             // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
             // Otherwise, check if the sprite will be rendered by the current scan line's line height
             if y_offset < line_num || y_offset >= line_num + 8 {
@@ -183,7 +200,7 @@ impl PPU {
                 self.check_sprite0_hit(pattern, x_offset, y_offset, line_num);
             }
 
-            self.send_pattern_to_window(pattern, x_offset, y_offset, line_num,true, force_draw);
+            self.send_pattern_to_window(pattern, x_offset as i16, y_offset, line_num,false, force_draw);
         }
     }
 
@@ -201,22 +218,22 @@ impl PPU {
 
             let pattern_num = self.memory.get_8_bit_value(start_address + offset);
             let pattern = self.get_pattern(pattern_num, false, false, false);
-            let start_x: u8 = ((offset % tiles_per_row) * 8) as u8;
-            self.send_pattern_to_window(pattern, start_x, start_y, line_num, false, false);
+            let start_x: i16 = ((offset % tiles_per_row) * 8) as i16 - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
+            self.send_pattern_to_window(pattern, start_x, start_y, line_num, true, false);
         }
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: u8, start_y: u8, line_num: u8, draw_transparent: bool, force_draw: bool) {
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: i16, start_y: u8, line_num: u8, draw_transparent: bool, force_draw: bool) {
         let y: usize = (start_y - line_num) as usize; // We only draw one scanline of the pattern. That scanline number is the y value of the sprite
         for x in 0..pattern.len() {
-            let drawn_x = start_x as u16 + x as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
-            let drawn_y = start_y as u16 + y as u16;
-            if drawn_x > SCREEN_WIDTH as u16 || drawn_y >= SCREEN_HEIGHT as u16 {
+            let drawn_x = start_x + x as i16;
+            let drawn_y = start_y as u16 + y as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
+            if drawn_x > SCREEN_WIDTH as i16 || drawn_x < 0 || drawn_y >= SCREEN_HEIGHT as u16 || drawn_y < 0 {
                 continue;
             }
 
             // Don't draw a transparent pixel if we aren't told to draw transparent pixels
-            if pattern[x][y] == 0 && draw_transparent {
+            if pattern[x][y] == 0 && !draw_transparent {
                 continue;
             }
 
@@ -289,7 +306,6 @@ impl PPU {
         }
     }
 
-    #[allow(dead_code)]
     fn using_16px_height_sprites(&self) -> bool {
         unsafe {
             return (*(self.ppu_control_register) & 0b0010_0000) != 0;
@@ -312,6 +328,10 @@ impl PPU {
         }
     }
 
+    fn is_rendering_enabled(&self) -> bool {
+        return self.is_background_rendered() || self.are_sprites_rendered();
+    }
+
     fn is_background_rendered(&self) -> bool {
         unsafe {
             return (*(self.ppu_mask_register) & 0b0000_1000) != 0;
@@ -331,13 +351,31 @@ impl PPU {
         }
     }
 
-    pub fn read_from_ppu_data(&mut self) -> u8 {
-        self.scroll_register_v += self.get_address_increment_amount() as u16;
+    fn increment_scroll_register(&mut self) {
+        let increment_amount = self.get_address_increment_amount() as u16;
+        self.scroll_register_v += increment_amount;
 
+        // The "Coarse X Increment" section of https://wiki.nesdev.com/w/index.php/PPU_scrolling
+        // seems to imply that this is how this should work. But all hell breaks loose when doing it.
+//        if increment_amount == 1 && (self.scroll_register_v & 0b0000_0000_0001_1111) == 0x1F {
+//            self.scroll_register_v &= 0b1111_1111_1110_0000; // Clear coarse X
+//            self.scroll_register_v ^= 0b0000_0100_0000_0000; // Switch the horizontal nametable
+//        } else {
+//            self.scroll_register_v += increment_amount;
+//        }
+    }
+
+    // This happens on reading 0x2007
+    pub fn read_from_ppu_data(&mut self) -> u8 {
+        if !self.is_rendering_enabled() {
+            self.increment_scroll_register();
+        }
+
+//        return self.memory.get_8_bit_value(self.scroll_register_v);
         let address = self.scroll_register_v;
 
         if address < 0x3F00 {
-            // Reads from most of VRAM are buffered and delay by a read
+            // Reads from most of VRAM are buffered and delayed by one read
             let rval = self.internal_read_buffer;
             self.internal_read_buffer = self.memory.get_8_bit_value(self.scroll_register_v);
 
@@ -396,7 +434,9 @@ impl PPU {
         } else if address == 0x2007 {
             self.memory.set_8_bit_value(self.scroll_register_v, value);
 
-            self.scroll_register_v += self.get_address_increment_amount() as u16;
+            if !self.is_rendering_enabled() {
+                self.increment_scroll_register();
+            }
         }
     }
 
@@ -424,12 +464,41 @@ impl PPU {
     // and the background both have non-transparent pixel values. If they do, set sprite0 as being hit
     fn check_sprite0_hit(&mut self, sprite0: [[u8; 8]; 8], x_offset: u8, y_offset: u8, line_num: u8) {
         let sprite_line = y_offset - line_num;
+        println!("{:X} {:X} {:X}", sprite_line, y_offset, line_num);
         for x in 0..sprite0.len() {
+            // TODO this background_pixel_exists bool should be negated for the logic to be sound... but sprite0 is never triggered when it is
             let background_pixel_exists = self.game_window.is_pixel_transparent(x_offset + x as u8, line_num);
-            if sprite0[x][sprite_line as usize] != 0 && background_pixel_exists {
+            let sprite_pixel_exists = sprite0[x][sprite_line as usize] != 0;
+//            println!("{} {}", background_pixel_exists, sprite_pixel_exists);
+            if sprite_pixel_exists && background_pixel_exists {
+//                println!("Hit!");
+//                println!("-----------");
+//                self.debug_draw_sprite(sprite0);
+//                println!("--");
+//                self.debug_background(x_offset, y_offset);
                 self.set_sprite0_hit(true);
                 return;
             }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn debug_draw_sprite(&self, sprite: [[u8; 8]; 8]) {
+        for y in 0..sprite.len() {
+            for x in 0..sprite.len() {
+                print!("{}", sprite[x][y])
+            }
+            println!();
+        }
+    }
+
+    #[allow(dead_code)]
+    fn debug_background(&self, x_offset: u8, y_offset: u8) {
+        for y in 0..8 {
+            for x in 0..8 {
+                print!("{}", self.game_window.get_pixel_value(x_offset + x, y_offset + y));
+            }
+            println!();
         }
     }
 
@@ -453,6 +522,7 @@ impl PPU {
         return (self.scroll_register_v & 0b0000_0000_0001_1111) as u8;
     }
 
+    #[allow(dead_code)]
     fn get_coarse_y(&self) -> u8 {
         return ((self.scroll_register_v & 0b0000_0011_1110_0000) >> 5) as u8;
     }
@@ -461,6 +531,7 @@ impl PPU {
         return self.scroll_register_x;
     }
 
+    #[allow(dead_code)]
     fn get_fine_y(&self) -> u8 {
         return ((self.scroll_register_v & 0b0111_0000_0000_0000) >> 12) as u8;
     }
