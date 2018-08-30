@@ -23,7 +23,8 @@ pub struct PPU {
     internal_read_buffer: u8, // Reads by the CPU from $2007 are delayed one read
     memory: PPUMemory,
     game_window: GameWindow,
-    frame_skip: u8
+    frame_skip: u8,
+    odd_frame: bool
 }
 
 const SCREEN_WIDTH: u8 = 255;
@@ -51,7 +52,8 @@ impl PPU {
                 internal_read_buffer: 0,
                 memory: PPUMemory::new(),
                 game_window: GameWindow::new(),
-                frame_skip: 0
+                frame_skip: 0,
+                odd_frame: true
             }
         }
     }
@@ -62,6 +64,10 @@ impl PPU {
 
     pub fn tick(&mut self) {
         self.clock_cycle_counter -= 1;
+
+        if self.clock_cycle_counter == 256 && self.is_rendering_enabled() {
+            self.increment_vertical_scroll_register();
+        }
 
         if self.clock_cycle_counter == 257 && self.is_rendering_enabled() {
             self.scroll_register_v &= 0b1111_1011_1110_0000;
@@ -77,15 +83,36 @@ impl PPU {
             self.scroll_register_v |= self.scroll_register_t & 0b0000_0011_1110_0000;
         }
 
+        if (self.clock_cycle_counter >= 328 || self.clock_cycle_counter <= 256) && self.clock_cycle_counter % 8 == 0 {
+            if self.is_rendering_enabled() {
+//                if (self.scroll_register_v & 0b0000_0000_0001_1111) == 0x1F {
+//                    self.scroll_register_v &= 0b1111_1111_1110_0000; // Clear coarse X
+//                    self.scroll_register_v ^= 0b0000_0100_0000_0000; // Switch the horizontal nametable
+//                } else {
+//                    self.scroll_register_v += 1;
+//                }
+            }
+        }
+
         if self.clock_cycle_counter > 0 {
             return
         } else {
-            // Each scanline lasts 341 cycles. This is an imperfect representation, as we render a
+            // Each scanline lasts 341 (or 340) cycles. This is an imperfect representation, as we render a
             // scanline all at once, instead of doing it one pixel at a time
             self.clock_cycle_counter = 341;
+
+            // This scanline varies in length, depending on whether an even or an odd frame is being rendered.
+            // For odd frames, the cycle at the end of the scanline is skipped
+            if self.scanline_counter == 20 && self.odd_frame {
+                self.clock_cycle_counter -= 1;
+            }
         }
 
         self.scanline_counter += 1;
+
+        if self.scanline_counter == 45 {
+//            self.set_sprite0_hit(true);
+        }
 
         if self.scanline_counter < 20 {
             // We are in VBlank time and likely will do nothing
@@ -120,6 +147,7 @@ impl PPU {
             self.set_vblank_status(true);
             self.scanline_counter = 0;
             self.set_sprite0_hit(false);
+            self.odd_frame = !self.odd_frame;
         }
     }
 
@@ -245,10 +273,8 @@ impl PPU {
     }
 
     fn get_base_nametable_address(&self) -> u16 {
-        unsafe {
-            let bit_values: u8 = *(self.ppu_control_register) & 0b0000_0011;
-            return 0x2000 + (0x400 * bit_values as u16);
-        }
+        let nametable_select = (self.scroll_register_v & 0b0000_1100_0000_0000) >> 10;
+        return 0x2000 + (0x400 * nametable_select as u16);
     }
 
     // An 8x8 sprite is composed of 8x16 bits. The first 8x8 set is added to the second 8x8 set to get 1 of 4 possible
@@ -351,24 +377,32 @@ impl PPU {
         }
     }
 
-    fn increment_scroll_register(&mut self) {
-        let increment_amount = self.get_address_increment_amount() as u16;
-        self.scroll_register_v += increment_amount;
+    fn increment_horizontal_scroll_register(&mut self) {
+        self.scroll_register_v += self.get_address_increment_amount() as u16;
+    }
 
-        // The "Coarse X Increment" section of https://wiki.nesdev.com/w/index.php/PPU_scrolling
-        // seems to imply that this is how this should work. But all hell breaks loose when doing it.
-//        if increment_amount == 1 && (self.scroll_register_v & 0b0000_0000_0001_1111) == 0x1F {
-//            self.scroll_register_v &= 0b1111_1111_1110_0000; // Clear coarse X
-//            self.scroll_register_v ^= 0b0000_0100_0000_0000; // Switch the horizontal nametable
-//        } else {
-//            self.scroll_register_v += increment_amount;
-//        }
+    fn increment_vertical_scroll_register(&mut self) {
+        if (self.scroll_register_v & 0x7000) != 0x7000 {
+            self.scroll_register_v += 0x1000;
+        } else {
+            self.scroll_register_v &= !0x7000;
+            let mut y = (self.scroll_register_v & 0x03E0) >> 5;
+            if y == 29 {
+                y = 0;
+                self.scroll_register_v ^= 0x0800;
+            } else if y == 31 {
+                y = 0;
+            } else {
+                y += 1;
+            }
+            self.scroll_register_v = (self.scroll_register_v & !0x03E0) | (y << 5);
+        }
     }
 
     // This happens on reading 0x2007
     pub fn read_from_ppu_data(&mut self) -> u8 {
         if !self.is_rendering_enabled() {
-            self.increment_scroll_register();
+            self.increment_horizontal_scroll_register();
         }
 
 //        return self.memory.get_8_bit_value(self.scroll_register_v);
@@ -435,7 +469,7 @@ impl PPU {
             self.memory.set_8_bit_value(self.scroll_register_v, value);
 
             if !self.is_rendering_enabled() {
-                self.increment_scroll_register();
+                self.increment_horizontal_scroll_register();
             }
         }
     }
@@ -464,7 +498,7 @@ impl PPU {
     // and the background both have non-transparent pixel values. If they do, set sprite0 as being hit
     fn check_sprite0_hit(&mut self, sprite0: [[u8; 8]; 8], x_offset: u8, y_offset: u8, line_num: u8) {
         let sprite_line = y_offset - line_num;
-        println!("{:X} {:X} {:X}", sprite_line, y_offset, line_num);
+//        println!("{:X} {:X} {:X}", sprite_line, y_offset, line_num);
         for x in 0..sprite0.len() {
             // TODO this background_pixel_exists bool should be negated for the logic to be sound... but sprite0 is never triggered when it is
             let background_pixel_exists = self.game_window.is_pixel_transparent(x_offset + x as u8, line_num);
