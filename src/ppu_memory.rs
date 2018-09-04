@@ -28,16 +28,11 @@ impl PPUMemory {
 
     pub fn get_8_bit_value(&self, mut address: u16) -> u8 {
         address = self.get_non_mirrored_address(address);
+        // Anything reading from 0x3F00 by 4's, 0x3F04, 0x3F08... etc gets the backdrop color from 0x3F00
+        if PPUMemory::is_palette_address(address) && address % 4 == 0 {
+            return self.memory[0x3F00];
+        }
         return self.memory[address as usize];
-    }
-
-    pub fn get_16_bit_value(&self, mut address: u16) -> u16 {
-        address = self.get_non_mirrored_address(address);
-
-        // Little Endian. Low byte is stored first
-        let high_byte: u16 = (self.memory[address as usize + 1] as u16) << 8;
-        let low_byte: u16 = self.memory[address as usize] as u16;
-        return high_byte | low_byte;
     }
 
     pub fn get_memory_range(&self, mut address: u16, num_bytes: u16) -> Vec<u8> {
@@ -56,23 +51,6 @@ impl PPUMemory {
 
         if PPUMemory::is_nametable_address(address) {
             self.mirror_nametable_write(address, value);
-        } else if PPUMemory::is_palette_address(address) {
-            self.mirror_palette_write(address, value);
-        }
-    }
-
-    pub fn set_16_bit_value(&mut self, mut address: u16, value: u16) {
-        address = self.get_non_mirrored_address(address);
-
-        self.memory[address as usize] = value as u8;
-        self.memory[address as usize + 1] = (value >> 8) as u8;
-
-        if PPUMemory::is_nametable_address(address) {
-            self.mirror_nametable_write(address, value as u8);
-            self.mirror_nametable_write(address + 1, (value >> 8) as u8);
-        } else if PPUMemory::is_palette_address(address) {
-            self.mirror_palette_write(address, value as u8);
-            self.mirror_palette_write(address + 1, (value >> 8) as u8);
         }
     }
 
@@ -85,9 +63,13 @@ impl PPUMemory {
 
         if address >= 0x3000 && address <= 0x3EFF {
             return address - 0x1000;
-        } else if address >= 0x3F20 && address <= 0x3FFF {
-            let mini_address = address % 0x20; // This is a shitty name but I can't think of a better one right now
-            return 0x3F00 + mini_address;
+        } else if address >= 0x3F00 && address <= 0x3FFF {
+            // There are mirrors in mirrors in the palette table. Anything mod 4 wants the backdrop color at 0x3F00
+            if address >= 0x3F10 && address % 4 == 0 {
+                return address - 0x10;
+            }
+
+            return 0x3F00 + address % 0x20;
         } else {
             return address;
         }
@@ -111,11 +93,6 @@ impl PPUMemory {
         }
     }
 
-    fn mirror_palette_write(&mut self, normalized_address: u16, value: u8) {
-        for i in 0..5 {
-            self.memory[(normalized_address + (0x20 * i)) as usize] = value;
-        }
-    }
 }
 
 #[cfg(test)]
@@ -130,29 +107,6 @@ mod tests {
 
         memory.set_8_bit_value(0x4500, 150);
         assert_eq!(memory.get_8_bit_value(0x500), 150);
-    }
-
-    #[test]
-    fn can_get_a_stored_16_bit_value() {
-        let mut memory = PPUMemory::new();
-
-        memory.set_16_bit_value(0x1500, 150); // 8 bit value stored as 16
-        assert_eq!(memory.get_16_bit_value(0x1500), 150);
-
-        memory.set_16_bit_value(0x1500, 10450); // 16 bit value also stored as 16
-        assert_eq!(memory.get_16_bit_value(0x1500), 10450);
-
-        memory.set_16_bit_value(0x4500, 150); // 8 bit value stored as 16
-        assert_eq!(memory.get_16_bit_value(0x500), 150);
-    }
-
-    #[test]
-    fn can_store_two_8_bit_values_and_read_back_as_a_16_bit_value() {
-        let mut memory = PPUMemory::new();
-
-        memory.set_8_bit_value(0x1500, 0x42); // 8 bit value stored as 16
-        memory.set_8_bit_value(0x1501, 0xA5); // 16 bit value also stored as 16
-        assert_eq!(memory.get_16_bit_value(0x1500), 0xA542);
     }
 
     #[test]

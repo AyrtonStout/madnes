@@ -111,7 +111,7 @@ impl PPU {
         self.scanline_counter += 1;
 
         if self.scanline_counter == 45 {
-//            self.set_sprite0_hit(true);
+            self.set_sprite0_hit(true);
         }
 
         if self.scanline_counter < 20 {
@@ -219,16 +219,18 @@ impl PPU {
             let flip_x = (sprite_flags & 0b0100_0000) != 0;
             let flip_y = (sprite_flags & 0b1000_0000) != 0;
             let force_draw = (sprite_flags & 0b0010_0000) == 0;
+            let palette_selection = sprite_flags & 0b0000_0011;
 
             let pattern_num = self.object_attribute_memory[start_address + 1];
             let pattern = self.get_pattern(pattern_num, true, flip_x, flip_y);
 
+
             // Check for sprite 0 hit
             if offset == 0 && !self.is_sprite0_hit() {
-                self.check_sprite0_hit(pattern, x_offset, y_offset, line_num);
+//                self.check_sprite0_hit(pattern, x_offset, y_offset, line_num);
             }
 
-            self.send_pattern_to_window(pattern, x_offset as i16, y_offset, line_num,false, force_draw);
+            self.send_pattern_to_window(pattern, x_offset as i16, y_offset, line_num, true, force_draw, palette_selection);
         }
     }
 
@@ -239,19 +241,26 @@ impl PPU {
 
         for offset in 0..nametable_size {
             // FIXME I should be able to instead modify the loop to only iterate over things being drawn, but that hurts my head right now
-            let start_y: u8 = ((offset / tiles_per_row) * 8) as u8;
+            let tile_y: u8 = (offset / tiles_per_row) as u8;
+            let tile_x: u8 = (offset % tiles_per_row) as u8;
+
+            let start_y = tile_y * 8;
             if start_y < line_num || start_y >= line_num + 8 {
                 continue;
             }
 
             let pattern_num = self.memory.get_8_bit_value(start_address + offset);
             let pattern = self.get_pattern(pattern_num, false, false, false);
-            let start_x: i16 = ((offset % tiles_per_row) * 8) as i16 - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
-            self.send_pattern_to_window(pattern, start_x, start_y, line_num, true, false);
+            let start_x: i16 = (tile_x * 8) as i16 - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
+
+            let palette_selection = self.get_attribute_value(tile_x, tile_y);
+
+            self.send_pattern_to_window(pattern, start_x, start_y, line_num, false, false, palette_selection);
         }
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: i16, start_y: u8, line_num: u8, draw_transparent: bool, force_draw: bool) {
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: i16, start_y: u8, line_num: u8,
+                              is_sprite_pattern: bool, force_draw: bool, palette_selection: u8) {
         let y: usize = (start_y - line_num) as usize; // We only draw one scanline of the pattern. That scanline number is the y value of the sprite
         for x in 0..pattern.len() {
             let drawn_x = start_x + x as i16;
@@ -260,21 +269,69 @@ impl PPU {
                 continue;
             }
 
-            // Don't draw a transparent pixel if we aren't told to draw transparent pixels
-            if pattern[x][y] == 0 && !draw_transparent {
+            // Don't draw a transparent pixel for sprites
+            if pattern[x][y] == 0 && is_sprite_pattern {
                 continue;
             }
 
             // Now draw our pixel, if the background doesn't have higher priority than us
             if force_draw || self.game_window.is_pixel_transparent(drawn_x as u8, drawn_y as u8) {
-                self.game_window.set_pixel_color(pattern[x][y], drawn_x as u8, drawn_y as u8);
+                let color_offset = pattern[x][y];
+                let palette_address = self.get_palette_address(palette_selection, is_sprite_pattern);
+                let color_value = self.memory.get_8_bit_value(palette_address + color_offset as u16);
+
+                self.game_window.set_pixel_color(color_value, drawn_x as u8, drawn_y as u8);
             }
         }
     }
 
     fn get_base_nametable_address(&self) -> u16 {
+        // I think this is actually correct, but it requires other adjustments to make things not look like garbage
+        // Once colors are a thing, this might have additional complications as well
+//        return 0x2000 | (self.scroll_register_v & 0x0FFF);
+
         let nametable_select = (self.scroll_register_v & 0b0000_1100_0000_0000) >> 10;
         return 0x2000 + (0x400 * nametable_select as u16);
+    }
+
+    fn get_palette_address(&self, palette_index: u8, is_sprite_pattern: bool) -> u16 {
+        let start_address = if is_sprite_pattern { 0x3F10 } else { 0x3F00 };
+        return start_address + (palette_index * 4) as u16;
+    }
+
+    // The attribute table maps a 4x4 section of background tiles to a single attribute tile
+    // Within this tile value that is returned, each 2x2 section has its own attribute value
+    // Asking for the attribute of tile (0,1) would be the same as (1,1) or (1,2)
+    // But not the same as (2,2), which would map to the same attribute tile, but a different group of bits within that tile
+    fn get_attribute_value(&self, tile_x: u8, tile_y: u8) -> u8 {
+        if tile_y >= 30 {
+            return 0; // This tile is off screen. Just say its attribute table is 0 as it doesn't really matter
+        }
+
+        let base_attribute_address = self.get_base_nametable_address() + 0x03C0;
+
+        // Attribute grid is 4x larger than nametable grid. So divide values by 4
+        let x_offset = tile_x / 4;
+        let y_offset = (tile_y / 4) * 8; // Attribute grid is 8x8 (technically 8x7.5) so multiply by 8 when going vertically down it
+
+        let attribute_address = base_attribute_address + x_offset as u16 + y_offset as u16;
+        let attribute_value = self.memory.get_8_bit_value(attribute_address);
+
+        // Now we have the byte of tile data
+        // Grab just the bits that matter for our 2x2 quadrant within this 4x4 tile
+        if tile_x % 4 < 2 {
+            if tile_y % 4 < 2 {
+                return attribute_value & 0b0000_0011;
+            } else {
+                return (attribute_value & 0b0011_0000) >> 4;
+            }
+        } else {
+            if tile_y % 4 < 2 {
+                return (attribute_value & 0b0000_1100) >> 2;
+            } else {
+                return (attribute_value & 0b1100_0000) >> 6;
+            }
+        }
     }
 
     // An 8x8 sprite is composed of 8x16 bits. The first 8x8 set is added to the second 8x8 set to get 1 of 4 possible
@@ -330,6 +387,13 @@ impl PPU {
                 return 0x0;
             }
         }
+    }
+
+    fn is_pixel_transparent(&self, drawn_x: u8, drawn_y: u8) -> bool {
+        let transparent_color = self.memory.get_8_bit_value(0x3F00);
+        let color = self.game_window.get_pixel_value(drawn_x, drawn_y);
+
+        return color == transparent_color;
     }
 
     fn using_16px_height_sprites(&self) -> bool {
@@ -501,7 +565,7 @@ impl PPU {
 //        println!("{:X} {:X} {:X}", sprite_line, y_offset, line_num);
         for x in 0..sprite0.len() {
             // TODO this background_pixel_exists bool should be negated for the logic to be sound... but sprite0 is never triggered when it is
-            let background_pixel_exists = self.game_window.is_pixel_transparent(x_offset + x as u8, line_num);
+            let background_pixel_exists = self.is_pixel_transparent(x_offset + x as u8, line_num);
             let sprite_pixel_exists = sprite0[x][sprite_line as usize] != 0;
 //            println!("{} {}", background_pixel_exists, sprite_pixel_exists);
             if sprite_pixel_exists && background_pixel_exists {
@@ -625,6 +689,18 @@ mod tests {
             assert_eq!(*ppu.ppu_status_register, 0x84);
             ppu.set_vblank_status(false);
             assert_eq!(*ppu.ppu_status_register, 0x04);
+        }
+    }
+
+    #[test]
+    fn test_get_attribute_value() {
+        let mut ppu: PPU = create_test_ppu();
+
+        unsafe {
+            ppu.scroll_register_v = 0;
+            ppu.memory.set_8_bit_value(0x23D2, 0b0110_1100);
+            let attribute_value = ppu.get_attribute_value(10, 8);
+            assert_eq!(attribute_value, 0x3);
         }
     }
 }
