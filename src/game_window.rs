@@ -20,6 +20,8 @@ pub struct GameWindow {
 
 const SCREEN_WIDTH: u16 = 256;
 const SCREEN_HEIGHT: u16 = 240;
+const OVERSCAN_HEIGHT: u8 = 8;
+const EFFECTIVE_SCREEN_HEIGHT: u16 = 240 - (OVERSCAN_HEIGHT as u16 * 2);
 const SCALING: u8 = 3;
 
 #[allow(dead_code)]
@@ -30,7 +32,7 @@ impl GameWindow {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
-        let window = video_subsystem.window("MadNes", SCREEN_WIDTH as u32 * SCALING as u32, SCREEN_HEIGHT as u32 * SCALING as u32)
+        let window = video_subsystem.window("MadNes", SCREEN_WIDTH as u32 * SCALING as u32, EFFECTIVE_SCREEN_HEIGHT as u32 * SCALING as u32)
             .position_centered()
             .opengl()
             .build()
@@ -78,17 +80,15 @@ impl GameWindow {
 
     fn create_texture(&mut self) {
         let texture_creator = self.canvas.texture_creator();
-        let width = 256;
-        let height = 240;
 
         let mut texture = texture_creator.create_texture_streaming(
-            PixelFormatEnum::RGB24, width, height).unwrap();
+            PixelFormatEnum::RGB24, SCREEN_WIDTH as u32, EFFECTIVE_SCREEN_HEIGHT as u32).unwrap();
 
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
-            for y in 0..240 {
-                for x in 0..255 {
-                    let offset = x*3 + y*pitch;
-                    let color = self.get_color(self.things_to_draw[x][y]);
+            for y in 0..EFFECTIVE_SCREEN_HEIGHT {
+                for x in 0..SCREEN_WIDTH {
+                    let offset = x as usize * 3 + y as usize * pitch;
+                    let color = self.get_color(self.things_to_draw[x as usize][(y + OVERSCAN_HEIGHT as u16) as usize]);
                     buffer[offset] = color.r;
                     buffer[offset + 1] = color.g;
                     buffer[offset + 2] = color.b;
@@ -96,7 +96,10 @@ impl GameWindow {
             }
         }).unwrap();
 
-        self.canvas.copy(&texture, None, Some(Rect::new(0, 0, width, height))).unwrap();
+        self.canvas.copy(&texture,
+                         None,
+                         Some(Rect::new(0, 0, SCREEN_WIDTH as u32, EFFECTIVE_SCREEN_HEIGHT as u32))
+        ).unwrap();
     }
 
     // Color will need to be better than a u8 later

@@ -110,7 +110,7 @@ impl PPU {
 
         self.scanline_counter += 1;
 
-        if self.scanline_counter == 45 {
+        if self.scanline_counter == 52 {
             self.set_sprite0_hit(true);
         }
 
@@ -204,8 +204,7 @@ impl PPU {
             let start_address = offset * oam_entry_size;
 
             // For whatever reason the NES renders sprites one pixel lower than they say they are. So add 1 to the y_offset here
-//            let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
-            let y_offset = self.object_attribute_memory[start_address];
+            let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
 
             // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
             // Otherwise, check if the sprite will be rendered by the current scan line's line height
@@ -275,7 +274,7 @@ impl PPU {
             }
 
             // Now draw our pixel, if the background doesn't have higher priority than us
-            if force_draw || self.game_window.is_pixel_transparent(drawn_x as u8, drawn_y as u8) {
+            if force_draw || self.is_pixel_transparent(drawn_x as u8, drawn_y as u8) {
                 let color_offset = pattern[x][y];
                 let palette_address = self.get_palette_address(palette_selection, is_sprite_pattern);
                 let color_value = self.memory.get_8_bit_value(palette_address + color_offset as u16);
@@ -390,9 +389,14 @@ impl PPU {
     }
 
     fn is_pixel_transparent(&self, drawn_x: u8, drawn_y: u8) -> bool {
-        let transparent_color = self.memory.get_8_bit_value(0x3F00);
         let color = self.game_window.get_pixel_value(drawn_x, drawn_y);
 
+        if color == 0 { // Nothing has been drawn, so it is transparent
+            return true;
+        }
+        let transparent_color = self.memory.get_8_bit_value(0x3F00);
+
+        // It's transparent because it's using the backdrop color
         return color == transparent_color;
     }
 
