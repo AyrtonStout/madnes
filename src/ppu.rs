@@ -206,9 +206,8 @@ impl PPU {
             // For whatever reason the NES renders sprites one pixel lower than they say they are. So add 1 to the y_offset here
             let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
 
-            // This sprite is above the max height of the screen and isn't supposed to be rendered. Just skip any additional logic
-            // Otherwise, check if the sprite will be rendered by the current scan line's line height
-            if y_offset < line_num || y_offset >= line_num + 8 {
+            // Check if the sprite will be rendered by the current scan line's line height
+            if y_offset > line_num || y_offset < line_num - 7 {
                 continue;
             }
 
@@ -238,48 +237,40 @@ impl PPU {
         let nametable_size: u16 = 960;
         let start_address = self.get_base_nametable_address();
 
-        for offset in 0..nametable_size {
-            // FIXME I should be able to instead modify the loop to only iterate over things being drawn, but that hurts my head right now
-            let tile_y: u8 = (offset / tiles_per_row) as u8;
-            let tile_x: u8 = (offset % tiles_per_row) as u8;
+        for tile_x in 0..tiles_per_row {
+            let tile_y: u8 = (line_num / 8) as u8;
 
-            let start_y = tile_y * 8;
-            if start_y < line_num || start_y >= line_num + 8 {
-                continue;
-            }
-
-            let pattern_num = self.memory.get_8_bit_value(start_address + offset);
+            let pattern_num = self.memory.get_8_bit_value(start_address + tile_x + (tile_y as u16 * tiles_per_row));
             let pattern = self.get_pattern(pattern_num, false, false, false);
             let start_x: i16 = (tile_x * 8) as i16 - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
 
-            let palette_selection = self.get_attribute_value(tile_x, tile_y);
+            let palette_selection = self.get_attribute_value(tile_x as u8, tile_y);
 
-            self.send_pattern_to_window(pattern, start_x, start_y, line_num, false, false, palette_selection);
+            self.send_pattern_to_window(pattern, start_x, tile_y * 8, line_num, false, false, palette_selection);
         }
     }
 
-    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: i16, start_y: u8, line_num: u8,
+    fn send_pattern_to_window(&mut self, pattern: [[u8; 8]; 8], start_x: i16, tile_y: u8, line_num: u8,
                               is_sprite_pattern: bool, force_draw: bool, palette_selection: u8) {
-        let y: usize = (start_y - line_num) as usize; // We only draw one scanline of the pattern. That scanline number is the y value of the sprite
-        for x in 0..pattern.len() {
-            let drawn_x = start_x + x as i16;
-            let drawn_y = start_y as u16 + y as u16; // Do math greater than a u8 so we can abort drawing if it's out of screen
-            if drawn_x > SCREEN_WIDTH as i16 || drawn_x < 0 || drawn_y >= SCREEN_HEIGHT as u16 || drawn_y < 0 {
+        let pattern_y: usize = (line_num - tile_y) as usize; // We only draw one scanline of the pattern. Figure out which index into the pattern that is
+        for pattern_x in 0..pattern.len() {
+            let drawn_x = start_x + pattern_x as i16; // Do math as an i16 to detect drawing out of bounds
+            if drawn_x > SCREEN_WIDTH as i16 || drawn_x < 0 || line_num >= SCREEN_HEIGHT || line_num < 0 {
                 continue;
             }
 
             // Don't draw a transparent pixel for sprites
-            if pattern[x][y] == 0 && is_sprite_pattern {
+            if pattern[pattern_x][pattern_y] == 0 && is_sprite_pattern {
                 continue;
             }
 
             // Now draw our pixel, if the background doesn't have higher priority than us
-            if force_draw || self.is_pixel_transparent(drawn_x as u8, drawn_y as u8) {
-                let color_offset = pattern[x][y];
+            if force_draw || self.is_pixel_transparent(drawn_x as u8, line_num as u8) {
+                let color_offset = pattern[pattern_x][pattern_y];
                 let palette_address = self.get_palette_address(palette_selection, is_sprite_pattern);
                 let color_value = self.memory.get_8_bit_value(palette_address + color_offset as u16);
 
-                self.game_window.set_pixel_color(color_value, drawn_x as u8, drawn_y as u8);
+                self.game_window.set_pixel_color(color_value, drawn_x as u8, line_num as u8);
             }
         }
     }
