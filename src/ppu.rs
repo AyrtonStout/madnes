@@ -479,7 +479,6 @@ impl PPU {
                 *self.spr_ram_address_register = oam_address.wrapping_add(1);
             }
         } else if address == 0x2005 {
-//            println!("High Byte Write 2005: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.scroll_register_t &= 0b0111_1111_1110_0000;
                 self.scroll_register_t |= (value >> 3) as u16;
@@ -493,17 +492,14 @@ impl PPU {
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2006 {
-//            println!("High Byte Write 2006: {} {:X}", self.high_byte_write, value);
             if self.high_byte_write {
                 self.scroll_register_t &= 0b0000_0000_1111_1111;
                 self.scroll_register_t |= ((value & 0b0011_1111) as u16) << 8;
             } else {
-//                println!("2006: {:X}", value);
                 self.scroll_register_t &= 0b1111_1111_0000_0000;
                 self.scroll_register_t |= value as u16;
 
                 self.scroll_register_v = self.scroll_register_t;
-//                println!("V: {:X}", self.scroll_register_v);
             }
             self.high_byte_write = !self.high_byte_write;
         } else if address == 0x2007 {
@@ -525,7 +521,6 @@ impl PPU {
     }
 
     fn set_vblank_status(&mut self, is_set: bool) {
-//        println!("VBlank set to {}", is_set);
         unsafe {
             if is_set {
                 *self.ppu_status_register |= 0b1000_0000;
@@ -554,26 +549,6 @@ impl PPU {
                 self.set_sprite0_hit(true);
                 return;
             }
-        }
-    }
-
-    #[allow(dead_code)]
-    fn debug_draw_sprite(&self, sprite: [[u8; 8]; 8]) {
-        for y in 0..sprite.len() {
-            for x in 0..sprite.len() {
-                print!("{}", sprite[x][y])
-            }
-            println!();
-        }
-    }
-
-    #[allow(dead_code)]
-    fn debug_background(&self, x_offset: u8, y_offset: u8) {
-        for y in 0..8 {
-            for x in 0..8 {
-                print!("{}", self.game_window.get_pixel_value(x_offset + x, y_offset + y));
-            }
-            println!();
         }
     }
 
