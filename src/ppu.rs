@@ -84,14 +84,14 @@ impl PPU {
         }
 
         if (self.clock_cycle_counter >= 328 || self.clock_cycle_counter <= 256) && self.clock_cycle_counter % 8 == 0 {
-            if self.is_rendering_enabled() {
+//            if self.is_rendering_enabled() {
 //                if (self.scroll_register_v & 0b0000_0000_0001_1111) == 0x1F {
 //                    self.scroll_register_v &= 0b1111_1111_1110_0000; // Clear coarse X
 //                    self.scroll_register_v ^= 0b0000_0100_0000_0000; // Switch the horizontal nametable
 //                } else {
 //                    self.scroll_register_v += 1;
 //                }
-            }
+//            }
         }
 
         if self.clock_cycle_counter > 0 {
@@ -151,30 +151,6 @@ impl PPU {
         }
     }
 
-    #[allow(dead_code)]
-    fn debug_pattern_table(&mut self) {
-        for i in 0x0..0x2000 {
-            if self.memory.get_8_bit_value(i) != 0 {
-                println!("Found something {:X}", i);
-                panic!(i);
-            }
-        }
-        let pattern_table_size = 255;
-        let pattern_size = 16;
-        for offset in 0..pattern_table_size {
-            let pattern = self.get_pattern(offset, true, false, false);
-            println!("{:X}", offset as u16 * pattern_size as u16);
-            for y in 0..8 {
-                for x in 0..8 {
-                    print!("{}", pattern[x][y]);
-                }
-                println!();
-            }
-            println!();
-        }
-//        panic!();
-    }
-
     fn draw_scanline(&mut self, line_num: u8) {
         if self.is_background_rendered() {
             self.draw_background(line_num);
@@ -190,6 +166,7 @@ impl PPU {
         }
     }
 
+    // TODO sprite iteration could be a little faster by caching all drawable sprites rather than iterating all 64 spots each scanline
     fn draw_sprites(&mut self, line_num: u8) {
         if self.using_16px_height_sprites() {
             panic!("16px sprites are not yet supported!");
@@ -207,7 +184,7 @@ impl PPU {
             let y_offset = self.object_attribute_memory[start_address].wrapping_add(1);
 
             // Check if the sprite will be rendered by the current scan line's line height
-            if y_offset > line_num || y_offset < line_num - 7 {
+            if y_offset > line_num || (line_num > 6 && y_offset < line_num - 7) {
                 continue;
             }
 
@@ -222,7 +199,6 @@ impl PPU {
             let pattern_num = self.object_attribute_memory[start_address + 1];
             let pattern = self.get_pattern(pattern_num, true, flip_x, flip_y);
 
-
             // Check for sprite 0 hit
             if offset == 0 && !self.is_sprite0_hit() {
 //                self.check_sprite0_hit(pattern, x_offset, y_offset, line_num);
@@ -233,18 +209,22 @@ impl PPU {
     }
 
     fn draw_background(&mut self, line_num: u8) {
-        let tiles_per_row = 32;
-        let nametable_size: u16 = 960;
-        let start_address = self.get_base_nametable_address();
+        let tiles_per_row: u8 = 32;
 
-        for tile_x in 0..tiles_per_row {
+        for tile_x in self.get_coarse_x()..self.get_coarse_x() + tiles_per_row + 1 {
+            // This rendering strategy is definitely not standard- always rendering both name tables all the time
+            // What should happen (I think) is the nametable being rendered should dynamically switch based off scroll_register_v
+            // However, incrementing this register in the right way when rendering the entire scanline at once is proving challenging
+            let start_address = if tile_x < tiles_per_row { self.get_nametable1_address() } else { self.get_nametable2_address() };
             let tile_y: u8 = (line_num / 8) as u8;
 
-            let pattern_num = self.memory.get_8_bit_value(start_address + tile_x + (tile_y as u16 * tiles_per_row));
-            let pattern = self.get_pattern(pattern_num, false, false, false);
-            let start_x: i16 = (tile_x * 8) as i16 - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
+            let pattern_address: u16 = start_address + (tile_x % tiles_per_row) as u16 + (tile_y as u16 * tiles_per_row as u16);
 
-            let palette_selection = self.get_attribute_value(tile_x as u8, tile_y);
+            let pattern_num = self.memory.get_8_bit_value(pattern_address);
+            let pattern = self.get_pattern(pattern_num, false, false, false);
+            let start_x: i16 = (tile_x as i16 * 8) - (self.get_coarse_x() * 8 + self.get_fine_x()) as i16;
+
+            let palette_selection = self.get_attribute_value(start_address, (tile_x % tiles_per_row) as u8, tile_y);
 
             self.send_pattern_to_window(pattern, start_x, tile_y * 8, line_num, false, false, palette_selection);
         }
@@ -275,13 +255,14 @@ impl PPU {
         }
     }
 
-    fn get_base_nametable_address(&self) -> u16 {
-        // I think this is actually correct, but it requires other adjustments to make things not look like garbage
-        // Once colors are a thing, this might have additional complications as well
-//        return 0x2000 | (self.scroll_register_v & 0x0FFF);
-
+    fn get_nametable1_address(&self) -> u16 {
         let nametable_select = (self.scroll_register_v & 0b0000_1100_0000_0000) >> 10;
         return 0x2000 + (0x400 * nametable_select as u16);
+    }
+
+    fn get_nametable2_address(&self) -> u16 {
+        let nametable_select = (self.scroll_register_v & 0b0000_1100_0000_0000) >> 10;
+        return 0x2000 + (0x400 * (nametable_select ^ 1) as u16);
     }
 
     fn get_palette_address(&self, palette_index: u8, is_sprite_pattern: bool) -> u16 {
@@ -293,12 +274,12 @@ impl PPU {
     // Within this tile value that is returned, each 2x2 section has its own attribute value
     // Asking for the attribute of tile (0,1) would be the same as (1,1) or (1,2)
     // But not the same as (2,2), which would map to the same attribute tile, but a different group of bits within that tile
-    fn get_attribute_value(&self, tile_x: u8, tile_y: u8) -> u8 {
+    fn get_attribute_value(&self, nametable_address: u16, tile_x: u8, tile_y: u8) -> u8 {
         if tile_y >= 30 {
             return 0; // This tile is off screen. Just say its attribute table is 0 as it doesn't really matter
         }
 
-        let base_attribute_address = self.get_base_nametable_address() + 0x03C0;
+        let base_attribute_address = nametable_address + 0x03C0;
 
         // Attribute grid is 4x larger than nametable grid. So divide values by 4
         let x_offset = tile_x / 4;
@@ -694,7 +675,7 @@ mod tests {
         unsafe {
             ppu.scroll_register_v = 0;
             ppu.memory.set_8_bit_value(0x23D2, 0b0110_1100);
-            let attribute_value = ppu.get_attribute_value(10, 8);
+            let attribute_value = ppu.get_attribute_value(0x2000, 10, 8);
             assert_eq!(attribute_value, 0x3);
         }
     }
