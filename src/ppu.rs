@@ -160,6 +160,7 @@ impl PPU {
         // https://wiki.nesdev.com/w/index.php/Sprite_overflow_games
         if self.are_sprites_rendered() {
             // The sprite rendering lags behind background rendering by 1 scanline... I think
+            // I don't actually see any changes when I do this vs drawing the same scanline right after
             if line_num > 0 {
                 self.draw_sprites(line_num - 1);
             }
@@ -327,8 +328,8 @@ impl PPU {
 
                 // Though it doesn't make a lot of sense to me why, perhaps a bug somewhere else in the emulator,
                 // we now default the sprites to horizontally flip so that they look normal
-                let x = if flip_x { bit_offset } else { 7u8 - bit_offset };
-                let y = if flip_y { byte_offset } else { byte_offset };
+                let x = if flip_x { bit_offset } else { 7 - bit_offset };
+                let y = if flip_y { 7 - byte_offset } else { byte_offset };
 
                 sprite[x as usize][y as usize] = low_bit + high_bit;
             }
